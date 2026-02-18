@@ -61,7 +61,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif text == "📢 ME.AS":
         await update.message.reply_text(
-            "https://t.me/thehackernews"
+            "https://t.me/+bimia6p-8dw0YTM0"
         )
 
     else:
