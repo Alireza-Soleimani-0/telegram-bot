@@ -34,16 +34,16 @@ IMAGE_PATH = "bot.jpg"
 def main_menu():
     keyboard = [
         [
-            InlineKeyboardButton("🔗 LinkedIn", callback_data="linkedin"),
+            InlineKeyboardButton("👔 LinkedIn", callback_data="linkedin"),
             InlineKeyboardButton("💻 Stack Overflow", callback_data="stackoverflow"),
         ],
         [
             InlineKeyboardButton("🐙 GitHub", callback_data="github"),
-            InlineKeyboardButton("🛡 𝔸.𝕊 𝙿𝙻𝙲|𝙰𝚞𝚝𝚘𝚖𝚊𝚝𝚒𝚘𝚗 ", callback_data="asnet"),
+            InlineKeyboardButton("⚙️ 𝔸.𝕊 𝙿𝙻𝙲|𝙰𝚞𝚝𝚘𝚖𝚊𝚝𝚒𝚘𝚗 ", callback_data="asnet"),
         ],
         [
-            InlineKeyboardButton("📩 A.S Anonymous", callback_data="anon"),
-            InlineKeyboardButton("📢about ME", callback_data="meas"),
+            InlineKeyboardButton("👤 A.S Anonymous", callback_data="anon"),
+            InlineKeyboardButton("📩about ME", callback_data="meas"),
         ],
         [
             InlineKeyboardButton("📊 Stats", callback_data="stats"),
