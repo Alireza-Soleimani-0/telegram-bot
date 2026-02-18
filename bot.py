@@ -30,24 +30,16 @@ WELCOME_TEXT = (
 
 IMAGE_PATH = "bot.jpg"
 
-# ------------------ منوی اصلی ------------------
+# ------------------ منوی اصلی (تک ستونه) ------------------
 def main_menu():
     keyboard = [
-        [
-            InlineKeyboardButton("🔗 LinkedIn", callback_data="linkedin"),
-            InlineKeyboardButton("💻 Stack Overflow", callback_data="stackoverflow"),
-        ],
-        [
-            InlineKeyboardButton("🐙 GitHub", callback_data="github"),
-            InlineKeyboardButton("🛡 ASnet Security", callback_data="asnet"),
-        ],
-        [
-            InlineKeyboardButton("📩 A.S Anonymous", callback_data="anon"),
-            InlineKeyboardButton("📢 ME.AS", callback_data="meas"),
-        ],
-        [
-            InlineKeyboardButton("📊 Stats", callback_data="stats"),
-        ],
+        [InlineKeyboardButton("🔗 LinkedIn", callback_data="linkedin")],
+        [InlineKeyboardButton("💻 Stack Overflow", callback_data="stackoverflow")],
+        [InlineKeyboardButton("🐙 GitHub", callback_data="github")],
+        [InlineKeyboardButton("🛡 ASnet Security", callback_data="asnet")],
+        [InlineKeyboardButton("📩 A.S Anonymous", callback_data="anon")],
+        [InlineKeyboardButton("📢 ME.AS", callback_data="meas")],
+        [InlineKeyboardButton("📊 Stats", callback_data="stats")],
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -68,7 +60,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=main_menu(),
             )
     except FileNotFoundError:
-        # اگر عکس پیدا نشد، فقط متن بفرست
         await update.message.reply_text(
             WELCOME_TEXT,
             parse_mode="Markdown",
