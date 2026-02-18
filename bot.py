@@ -1,82 +1,50 @@
 import os
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
-    MessageHandler,
+    CallbackQueryHandler,
     ContextTypes,
-    filters,
 )
 
-# گرفتن توکن از Railway Variables
 TOKEN = os.getenv("TOKEN")
 
-keyboard = [
-    ["🔗 LinkedIn"],
-    ["💻 Stack Overflow"],
-    ["🐙 GitHub"],
-    ["🛡 ASnet Security"],
-    ["📩 𝗔.𝗦 Anonymous"],
-    ["📢 ME.AS"],
-]
+# ---------- کیبورد اینلاین ----------
+def main_keyboard():
+    keyboard = [
+        [InlineKeyboardButton("LinkedIn", url="https://www.linkedin.com/in/alirezasoleimani-")],
+        [InlineKeyboardButton("Stack Overflow", url="https://stackoverflow.com/users/23951445/alireza")],
+        [InlineKeyboardButton("GitHub", url="https://github.com/Alireza-Soleimani-0")],
+        [InlineKeyboardButton("ASnet Security", url="https://t.me/ASnet01")],
+        [InlineKeyboardButton("A.S Anonymous", url="https://t.me/NoronChat_bot?start=sec-fhhchicadf")],
+        [InlineKeyboardButton("ME.AS", url="https://t.me/+bimia6p-8dw0YTM0")],
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
-reply_markup = ReplyKeyboardMarkup(
-    keyboard,
-    resize_keyboard=True,
-)
-
+# ---------- استارت ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🔥 Welcome to 𝗔𝗹𝗶𝗿𝗲𝘇𝗮 𝗦𝗼𝗹𝗲𝗶𝗺𝗮𝗻𝗶 Bot\n\nSelect an option:",
-        reply_markup=reply_markup,
+    await update.message.reply_photo(
+        photo="https://i.imgur.com/8Km9tLL.jpg",  # اگر خواستی بنر خودت بزار
+        caption=(
+            "🔥 Welcome to 𝗔𝗹𝗶𝗿𝗲𝘇𝗮 𝗦𝗼𝗹𝗲𝗶𝗺𝗮𝗻𝗶 Bot\n\n"
+            "Select an option:"
+        ),
+        reply_markup=main_keyboard(),
     )
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-
-    if text == "🔗 LinkedIn":
-        await update.message.reply_text(
-            "https://www.linkedin.com/in/alirezasoleimani-"
-        )
-
-    elif text == "💻 Stack Overflow":
-        await update.message.reply_text(
-            "https://stackoverflow.com/users/23951445/alireza"
-        )
-
-    elif text == "🐙 GitHub":
-        await update.message.reply_text(
-            "https://github.com/AlirezaSoleimani"
-        )
-
-    elif text == "🛡 ASnet Security":
-        await update.message.reply_text(
-            "https://t.me/ASnet01"
-        )
-
-    elif text == "📩 𝗔.𝗦 Anonymous":
-        await update.message.reply_text(
-            "https://t.me/+bimia6p-8dw0YTM0"
-        )
-
-    elif text == "📢 ME.AS":
-        await update.message.reply_text(
-            "https://t.me/+bimia6p-8dw0YTM0"
-        )
-
-    else:
-        await update.message.reply_text("❌ گزینه نامعتبر")
-
+# ---------- main ----------
 def main():
     if not TOKEN:
-        raise ValueError("❌ TOKEN is not set in Railway Variables")
+        raise ValueError("TOKEN is not set!")
 
     app = ApplicationBuilder().token(TOKEN).build()
-
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("🤖 Bot is running...")
+    print("Bot is running...")
     app.run_polling()
 
 if __name__ == "__main__":
