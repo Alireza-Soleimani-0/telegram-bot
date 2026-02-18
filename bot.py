@@ -117,7 +117,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🐙 GitHub: {click_stats['github']}\n"
             f"🛡 ASnet: {click_stats['asnet']}\n"
             f"📩 Anonymous: {click_stats['anon']}\n"
-            f"📢 ME.AS: {click_stats['meas']}"
+            f"📢 about ME.AS: {click_stats['meas']}"
         )
 
         await query.edit_message_caption(
