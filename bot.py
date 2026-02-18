@@ -17,6 +17,7 @@ keyboard = [
     ["🐙 GitHub"],
     ["🛡 ASnet Security"],
     ["📩 𝗔.𝗦 Anonymous"],
+    ["📢 ME.AS"],  # دکمه جدید
 ]
 
 reply_markup = ReplyKeyboardMarkup(
@@ -45,28 +46,3 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif text == "🐙 GitHub":
         await update.message.reply_text(
-            "https://github.com/Alireza-Soleimani-0"
-        )
-
-    elif text == "🛡 ASnet Security":
-        await update.message.reply_text("https://t.me/ASnet01")
-
-    elif text == "📩 𝗔.𝗦 Anonymous":
-        await update.message.reply_text(
-            "https://t.me/NoronChat_bot?start=sec-fhhchicadf"
-        )
-
-def main():
-    if not TOKEN:
-        raise ValueError("TOKEN is not set in environment variables!")
-
-    app = ApplicationBuilder().token(TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    print("Bot is running...")
-    app.run_polling()
-
-if __name__ == "__main__":
-    main()
