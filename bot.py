@@ -17,7 +17,7 @@ keyboard = [
     ["🐙 GitHub"],
     ["🛡 ASnet Security"],
     ["📩 𝗔.𝗦 Anonymous"],
-    ["📢 ME.AS"],  # دکمه جدید
+    ["📢 ME.AS"],
 ]
 
 reply_markup = ReplyKeyboardMarkup(
@@ -46,3 +46,38 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif text == "🐙 GitHub":
         await update.message.reply_text(
+            "https://github.com/AlirezaSoleimani"
+        )
+
+    elif text == "🛡 ASnet Security":
+        await update.message.reply_text(
+            "https://t.me/ASnet01"
+        )
+
+    elif text == "📩 𝗔.𝗦 Anonymous":
+        await update.message.reply_text(
+            "https://t.me/+bimia6p-8dw0YTM0"
+        )
+
+    elif text == "📢 ME.AS":
+        await update.message.reply_text(
+            "https://t.me/thehackernews"
+        )
+
+    else:
+        await update.message.reply_text("❌ گزینه نامعتبر")
+
+def main():
+    if not TOKEN:
+        raise ValueError("❌ TOKEN is not set in Railway Variables")
+
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    print("🤖 Bot is running...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
