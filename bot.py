@@ -13,7 +13,7 @@ from telegram.ext import (
 
 TOKEN = os.getenv("TOKEN")
 
-# ------------------ آمار کلیک ------------------
+# 🔥 آمار کلیک
 click_stats = {
     "linkedin": 0,
     "stackoverflow": 0,
@@ -23,53 +23,44 @@ click_stats = {
     "meas": 0,
 }
 
-# ------------------ منوی اصلی ------------------
+# ------------------ منوی اصلی (تک ستونه بزرگ) ------------------
 def main_menu():
     keyboard = [
-        [
-            InlineKeyboardButton("🔗 LinkedIn", callback_data="linkedin"),
-            InlineKeyboardButton("💻 Stack Overflow", callback_data="stackoverflow"),
-        ],
-        [
-            InlineKeyboardButton("🐙 GitHub", callback_data="github"),
-            InlineKeyboardButton("🛡 ASnet Security", callback_data="asnet"),
-        ],
-        [
-            InlineKeyboardButton("📩 A.S Anonymous", callback_data="anon"),
-            InlineKeyboardButton("📢 ME.AS", callback_data="meas"),
-        ],
-        [
-            InlineKeyboardButton("📊 Stats", callback_data="stats"),
-        ],
+        [InlineKeyboardButton("🔗 LinkedIn", callback_data="linkedin")],
+        [InlineKeyboardButton("💻 Stack Overflow", callback_data="stackoverflow")],
+        [InlineKeyboardButton("🐙 GitHub", callback_data="github")],
+        [InlineKeyboardButton("🛡 ASnet Security", callback_data="asnet")],
+        [InlineKeyboardButton("📩 A.S Anonymous", callback_data="anon")],
+        [InlineKeyboardButton("📢 ME.AS", callback_data="meas")],
+        [InlineKeyboardButton("📊 Stats", callback_data="stats")],
     ]
     return InlineKeyboardMarkup(keyboard)
 
 # ------------------ دکمه بازگشت ------------------
 def back_button():
     return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
+        [[InlineKeyboardButton("🔙 Back to Menu", callback_data="back")]]
     )
 
 # ------------------ start ------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_photo(
+        # 👇 بنر شما
         photo="https://i.imgur.com/8Km9tLL.jpg",
         caption=(
             "🔥 **Welcome to Alireza Soleimani Bot**\n\n"
-            "Choose one of the options below 👇"
+            "Select an option:"
         ),
         parse_mode="Markdown",
         reply_markup=main_menu(),
     )
 
-# ------------------ مدیریت کلیک ------------------
+# ------------------ دکمه‌ها ------------------
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
     data = query.data
 
-    # لینک‌ها
     links = {
         "linkedin": "https://www.linkedin.com/in/alirezasoleimani-",
         "stackoverflow": "https://stackoverflow.com/users/23951445/alireza",
@@ -79,28 +70,28 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "meas": "https://t.me/+bimia6p-8dw0YTM0",
     }
 
-    # ---------- بازگشت ----------
+    # 🔙 بازگشت
     if data == "back":
         await query.edit_message_caption(
             caption=(
                 "🔥 **Welcome to Alireza Soleimani Bot**\n\n"
-                "Choose one of the options below 👇"
+                "Select an option:"
             ),
             parse_mode="Markdown",
             reply_markup=main_menu(),
         )
         return
 
-    # ---------- آمار ----------
+    # 📊 آمار
     if data == "stats":
         text = (
             "📊 **Bot Statistics**\n\n"
-            f"🔗 LinkedIn: {click_stats['linkedin']}\n"
-            f"💻 StackOverflow: {click_stats['stackoverflow']}\n"
-            f"🐙 GitHub: {click_stats['github']}\n"
-            f"🛡 ASnet: {click_stats['asnet']}\n"
-            f"📩 Anonymous: {click_stats['anon']}\n"
-            f"📢 ME.AS: {click_stats['meas']}"
+            f"LinkedIn: {click_stats['linkedin']}\n"
+            f"StackOverflow: {click_stats['stackoverflow']}\n"
+            f"GitHub: {click_stats['github']}\n"
+            f"ASnet: {click_stats['asnet']}\n"
+            f"Anonymous: {click_stats['anon']}\n"
+            f"ME.AS: {click_stats['meas']}"
         )
 
         await query.edit_message_caption(
@@ -110,7 +101,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ---------- لینک‌ها ----------
+    # 🔗 لینک‌ها
     if data in links:
         click_stats[data] += 1
 
