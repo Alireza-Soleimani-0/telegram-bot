@@ -3,7 +3,6 @@ from telegram import (
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    InputFile,
 )
 from telegram.ext import (
     ApplicationBuilder,
@@ -24,13 +23,12 @@ click_stats = {
     "meas": 0,
 }
 
-# ------------------ مسیر عکس ------------------
-IMAGE_PATH = "bot.jpg"
-
 WELCOME_TEXT = (
     "🔥 **Welcome to Alireza Soleimani Bot**\n\n"
     "Choose one of the options below 👇"
 )
+
+IMAGE_PATH = "bot.jpg"
 
 # ------------------ منوی اصلی ------------------
 def main_menu():
@@ -61,14 +59,23 @@ def back_button():
 
 # ------------------ start ------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_photo(
-        photo=InputFile(IMAGE_PATH),
-        caption=WELCOME_TEXT,
-        parse_mode="Markdown",
-        reply_markup=main_menu(),
-    )
+    try:
+        with open(IMAGE_PATH, "rb") as photo:
+            await update.message.reply_photo(
+                photo=photo,
+                caption=WELCOME_TEXT,
+                parse_mode="Markdown",
+                reply_markup=main_menu(),
+            )
+    except FileNotFoundError:
+        # اگر عکس پیدا نشد، فقط متن بفرست
+        await update.message.reply_text(
+            WELCOME_TEXT,
+            parse_mode="Markdown",
+            reply_markup=main_menu(),
+        )
 
-# ------------------ مدیریت کلیک ------------------
+# ------------------ مدیریت دکمه‌ها ------------------
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -86,15 +93,20 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ---------- بازگشت ----------
     if data == "back":
-        await query.edit_message_media(
-            media={
-                "type": "photo",
-                "media": InputFile(IMAGE_PATH),
-                "caption": WELCOME_TEXT,
-                "parse_mode": "Markdown",
-            },
-            reply_markup=main_menu(),
-        )
+        try:
+            with open(IMAGE_PATH, "rb") as photo:
+                await query.message.reply_photo(
+                    photo=photo,
+                    caption=WELCOME_TEXT,
+                    parse_mode="Markdown",
+                    reply_markup=main_menu(),
+                )
+        except FileNotFoundError:
+            await query.edit_message_caption(
+                caption=WELCOME_TEXT,
+                parse_mode="Markdown",
+                reply_markup=main_menu(),
+            )
         return
 
     # ---------- آمار ----------
