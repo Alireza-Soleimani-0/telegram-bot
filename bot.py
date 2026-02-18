@@ -39,7 +39,7 @@ def main_menu():
         ],
         [
             InlineKeyboardButton("🐙 GitHub", callback_data="github"),
-            InlineKeyboardButton("🛡 ASnet Security", callback_data="asnet"),
+            InlineKeyboardButton("🛡 𝔸.𝕊 𝙿𝙻𝙲|𝙰𝚞𝚝𝚘𝚖𝚊𝚝𝚒𝚘𝚗 ", callback_data="asnet"),
         ],
         [
             InlineKeyboardButton("📩 A.S Anonymous", callback_data="anon"),
@@ -85,7 +85,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "linkedin": "https://www.linkedin.com/in/alirezasoleimani-",
         "stackoverflow": "https://stackoverflow.com/users/23951445/alireza",
         "github": "https://github.com/Alireza-Soleimani-0",
-        "asnet": "https://t.me/ASnet01",
+        "asnet": "https://t.me/ASAutomation",
         "anon": "https://t.me/NoronChat_bot?start=sec-fhhchicadf",
         "meas": "https://t.me/+bimia6p-8dw0YTM0",
     }
