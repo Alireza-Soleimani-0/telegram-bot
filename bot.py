@@ -1,66 +1,36 @@
-import logging
-from telegram import (
-    Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup
-)
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    ContextTypes
-)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 TOKEN = "YOUR_BOT_TOKEN"
-PHOTO_URL = "https://i.imgur.com/your-image.jpg"  # عکس خودت
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
 
-# 🔥 کیبورد خفن با آیکون واقعی
-def get_keyboard():
-    keyboard = [
-        [
-            InlineKeyboardButton(
-                "💼 LinkedIn",
-                url="https://linkedin.com/in/yourusername"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                "🧠 Stack Overflow",
-                url="https://stackoverflow.com/users/yourid"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                "🐙 GitHub",
-                url="https://github.com/yourusername"
-            )
-        ],
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-# 🚀 دستور start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("🔗 LinkedIn", url="https://linkedin.com")],
+        [InlineKeyboardButton("💻 Stack Overflow", url="https://stackoverflow.com")],
+        [InlineKeyboardButton("🐙 GitHub", url="https://github.com")],
+        [InlineKeyboardButton("🛡 ASnet Security", url="https://t.me")],
+        [InlineKeyboardButton("✉️ A.S Anonymous", url="https://t.me")],
+        [InlineKeyboardButton("📢 ME.AS", url="https://t.me")],
+    ]
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
     caption = (
-        "🔥 Welcome to Alireza Soleimani Bot\n\n"
-        "✨ Select an option below:"
+        "🔥 *Welcome to Alireza Soleimani Bot*\n\n"
+        "Select an option:"
     )
 
     await update.message.reply_photo(
-        photo=PHOTO_URL,
+        photo="https://i.imgur.com/your-banner.png",  # 🔥 بنر تو
         caption=caption,
-        reply_markup=get_keyboard()
+        parse_mode="Markdown",
+        reply_markup=reply_markup,
     )
 
-# ▶️ اجرا
-def main():
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    print("✅ Bot is running...")
-    app.run_polling()
 
-if __name__ == "__main__":
-    main()
+app = ApplicationBuilder().token(TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+
+print("Bot is running...")
+app.run_polling()
