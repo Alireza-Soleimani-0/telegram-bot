@@ -43,7 +43,7 @@ def main_menu():
         ],
         [
             InlineKeyboardButton("📩 A.S Anonymous", callback_data="anon"),
-            InlineKeyboardButton("📢 ME.AS", callback_data="meas"),
+            InlineKeyboardButton("📢about ME", callback_data="meas"),
         ],
         [
             InlineKeyboardButton("📊 Stats", callback_data="stats"),
