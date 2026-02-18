@@ -1,36 +1,143 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+import os
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputFile,
+)
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+)
 
-TOKEN = "YOUR_BOT_TOKEN"
+TOKEN = os.getenv("TOKEN")
 
+# ------------------ آمار کلیک ------------------
+click_stats = {
+    "linkedin": 0,
+    "stackoverflow": 0,
+    "github": 0,
+    "asnet": 0,
+    "anon": 0,
+    "meas": 0,
+}
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ------------------ مسیر عکس ------------------
+IMAGE_PATH = "bot.jpg"
+
+WELCOME_TEXT = (
+    "🔥 **Welcome to Alireza Soleimani Bot**\n\n"
+    "Choose one of the options below 👇"
+)
+
+# ------------------ منوی اصلی ------------------
+def main_menu():
     keyboard = [
-        [InlineKeyboardButton("🔗 LinkedIn", url="https://linkedin.com")],
-        [InlineKeyboardButton("💻 Stack Overflow", url="https://stackoverflow.com")],
-        [InlineKeyboardButton("🐙 GitHub", url="https://github.com")],
-        [InlineKeyboardButton("🛡 ASnet Security", url="https://t.me")],
-        [InlineKeyboardButton("✉️ A.S Anonymous", url="https://t.me")],
-        [InlineKeyboardButton("📢 ME.AS", url="https://t.me")],
+        [
+            InlineKeyboardButton("🔗 LinkedIn", callback_data="linkedin"),
+            InlineKeyboardButton("💻 Stack Overflow", callback_data="stackoverflow"),
+        ],
+        [
+            InlineKeyboardButton("🐙 GitHub", callback_data="github"),
+            InlineKeyboardButton("🛡 ASnet Security", callback_data="asnet"),
+        ],
+        [
+            InlineKeyboardButton("📩 A.S Anonymous", callback_data="anon"),
+            InlineKeyboardButton("📢 ME.AS", callback_data="meas"),
+        ],
+        [
+            InlineKeyboardButton("📊 Stats", callback_data="stats"),
+        ],
     ]
+    return InlineKeyboardMarkup(keyboard)
 
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    caption = (
-        "🔥 *Welcome to Alireza Soleimani Bot*\n\n"
-        "Select an option:"
+# ------------------ دکمه بازگشت ------------------
+def back_button():
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
     )
 
+# ------------------ start ------------------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_photo(
-        photo="https://i.imgur.com/your-banner.png",  # 🔥 بنر تو
-        caption=caption,
+        photo=InputFile(IMAGE_PATH),
+        caption=WELCOME_TEXT,
         parse_mode="Markdown",
-        reply_markup=reply_markup,
+        reply_markup=main_menu(),
     )
 
+# ------------------ مدیریت کلیک ------------------
+async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-app = ApplicationBuilder().token(TOKEN).build()
-app.add_handler(CommandHandler("start", start))
+    data = query.data
 
-print("Bot is running...")
-app.run_polling()
+    links = {
+        "linkedin": "https://www.linkedin.com/in/alirezasoleimani-",
+        "stackoverflow": "https://stackoverflow.com/users/23951445/alireza",
+        "github": "https://github.com/Alireza-Soleimani-0",
+        "asnet": "https://t.me/ASnet01",
+        "anon": "https://t.me/NoronChat_bot?start=sec-fhhchicadf",
+        "meas": "https://t.me/+bimia6p-8dw0YTM0",
+    }
+
+    # ---------- بازگشت ----------
+    if data == "back":
+        await query.edit_message_media(
+            media={
+                "type": "photo",
+                "media": InputFile(IMAGE_PATH),
+                "caption": WELCOME_TEXT,
+                "parse_mode": "Markdown",
+            },
+            reply_markup=main_menu(),
+        )
+        return
+
+    # ---------- آمار ----------
+    if data == "stats":
+        text = (
+            "📊 **Bot Statistics**\n\n"
+            f"🔗 LinkedIn: {click_stats['linkedin']}\n"
+            f"💻 StackOverflow: {click_stats['stackoverflow']}\n"
+            f"🐙 GitHub: {click_stats['github']}\n"
+            f"🛡 ASnet: {click_stats['asnet']}\n"
+            f"📩 Anonymous: {click_stats['anon']}\n"
+            f"📢 ME.AS: {click_stats['meas']}"
+        )
+
+        await query.edit_message_caption(
+            caption=text,
+            parse_mode="Markdown",
+            reply_markup=back_button(),
+        )
+        return
+
+    # ---------- لینک‌ها ----------
+    if data in links:
+        click_stats[data] += 1
+
+        await query.edit_message_caption(
+            caption=f"🚀 **Open Link:**\n{links[data]}",
+            parse_mode="Markdown",
+            reply_markup=back_button(),
+        )
+
+# ------------------ main ------------------
+def main():
+    if not TOKEN:
+        raise ValueError("TOKEN is not set!")
+
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(buttons))
+
+    print("🔥 Bot is running...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
