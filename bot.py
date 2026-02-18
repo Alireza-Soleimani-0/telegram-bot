@@ -30,16 +30,24 @@ WELCOME_TEXT = (
 
 IMAGE_PATH = "bot.jpg"
 
-# ------------------ منوی اصلی (تک ستونه) ------------------
+# ------------------ منوی اصلی (دو ستونه) ------------------
 def main_menu():
     keyboard = [
-        [InlineKeyboardButton("🔗 LinkedIn", callback_data="linkedin")],
-        [InlineKeyboardButton("💻 Stack Overflow", callback_data="stackoverflow")],
-        [InlineKeyboardButton("🐙 GitHub", callback_data="github")],
-        [InlineKeyboardButton("🛡 ASnet Security", callback_data="asnet")],
-        [InlineKeyboardButton("📩 A.S Anonymous", callback_data="anon")],
-        [InlineKeyboardButton("📢 ME.AS", callback_data="meas")],
-        [InlineKeyboardButton("📊 Stats", callback_data="stats")],
+        [
+            InlineKeyboardButton("🔗 LinkedIn", callback_data="linkedin"),
+            InlineKeyboardButton("💻 Stack Overflow", callback_data="stackoverflow"),
+        ],
+        [
+            InlineKeyboardButton("🐙 GitHub", callback_data="github"),
+            InlineKeyboardButton("🛡 ASnet Security", callback_data="asnet"),
+        ],
+        [
+            InlineKeyboardButton("📩 A.S Anonymous", callback_data="anon"),
+            InlineKeyboardButton("📢 ME.AS", callback_data="meas"),
+        ],
+        [
+            InlineKeyboardButton("📊 Stats", callback_data="stats"),
+        ],
     ]
     return InlineKeyboardMarkup(keyboard)
 
