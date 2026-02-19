@@ -1,5 +1,5 @@
 import os
-import time
+from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -8,81 +8,173 @@ from telegram.ext import (
     ContextTypes,
 )
 
+# توکن از Railway
 TOKEN = os.getenv("BOT_TOKEN")
 
-# 👇 آیدی عددی خودت
-ADMIN_ID = 123456789
+# آیدی عددی خودت
+ADMIN_ID = 5772782035
 
-# ذخیره زمان آخرین فعالیت هر کاربر
-user_last_active = {}
+IMAGE_PATH = "bot.jpg"
 
+# ذخیره آخرین پیام کاربران برای ریست
+user_last_message = {}
 
-# ---------------- START ----------------
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+# آمار کلیک
+click_stats = {
+    "linkedin": 0,
+    "stackoverflow": 0,
+    "github": 0,
+    "asnet": 0,
+    "anon": 0,
+    "meas": 0,
+}
 
-    # ثبت زمان فعالیت
-    user_last_active[user_id] = time.time()
+WELCOME_TEXT = (
+    "🔥 **Welcome to Alireza Soleimani Bot**\n\n"
+    "Choose one of the options below 👇"
+)
 
+# ---------- منو ----------
+def main_menu():
     keyboard = [
-        [InlineKeyboardButton("نمایش محتوا", callback_data="show")]
+        [
+            InlineKeyboardButton("👔 LinkedIn", callback_data="linkedin"),
+            InlineKeyboardButton("💻 Stack Overflow", callback_data="stackoverflow"),
+        ],
+        [
+            InlineKeyboardButton("🐙 GitHub", callback_data="github"),
+            InlineKeyboardButton("⚙️ AS Automation", callback_data="asnet"),
+        ],
+        [
+            InlineKeyboardButton("👤 Anonymous", callback_data="anon"),
+            InlineKeyboardButton("📩 About Me", callback_data="meas"),
+        ],
+        [InlineKeyboardButton("📊 Stats", callback_data="stats")],
     ]
+    return InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text(
-        "سلام 👋\nروی دکمه بزن:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+def back_button():
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
     )
 
+# ---------- استارت ----------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        with open(IMAGE_PATH, "rb") as photo:
+            msg = await update.message.reply_photo(
+                photo=photo,
+                caption=WELCOME_TEXT,
+                parse_mode="Markdown",
+                reply_markup=main_menu(),
+            )
+    except:
+        msg = await update.message.reply_text(
+            WELCOME_TEXT,
+            parse_mode="Markdown",
+            reply_markup=main_menu(),
+        )
 
-# ---------------- BUTTON ----------------
+    user_last_message[update.effective_user.id] = msg
+
+# ---------- ارسال گزارش ----------
+async def send_report(context, user, link_name):
+    time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    username = f"@{user.username}" if user.username else "ندارد"
+
+    text = (
+        f"📊 **New Click**\n\n"
+        f"👤 Name: {user.full_name}\n"
+        f"🆔 ID: `{user.id}`\n"
+        f"🔗 Username: {username}\n"
+        f"📍 Clicked: {link_name}\n"
+        f"⏰ Time: {time}"
+    )
+
+    await context.bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
+
+# ---------- دکمه‌ها ----------
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    user_id = query.from_user.id
-
     await query.answer()
 
-    # ثبت زمان فعالیت
-    user_last_active[user_id] = time.time()
+    user = query.from_user
+    data = query.data
 
-    if query.data == "show":
-        await query.message.edit_text("✅ این محتوای بات است")
+    links = {
+        "linkedin": "https://www.linkedin.com/",
+        "stackoverflow": "https://stackoverflow.com/",
+        "github": "https://github.com/",
+        "asnet": "https://t.me/",
+        "anon": "https://t.me/",
+        "meas": "https://t.me/",
+    }
 
+    if data == "back":
+        await query.edit_message_caption(
+            caption=WELCOME_TEXT,
+            parse_mode="Markdown",
+            reply_markup=main_menu(),
+        )
+        return
 
-# ---------------- RESET JOB ----------------
+    if data == "stats":
+        text = "\n".join([f"{k}: {v}" for k, v in click_stats.items()])
+        await query.edit_message_caption(
+            caption=f"📊 Stats\n\n{text}",
+            reply_markup=back_button(),
+        )
+        return
+
+    if data in links:
+        click_stats[data] += 1
+        await send_report(context, user, data)
+
+        await query.edit_message_caption(
+            caption=f"🚀 **Open Link:**\n{links[data]}",
+            parse_mode="Markdown",
+            reply_markup=back_button(),
+        )
+
+# ---------- ریست ساعتی ----------
 async def reset_users(context: ContextTypes.DEFAULT_TYPE):
-    now = time.time()
-    to_delete = []
+    for user_id, msg in list(user_last_message.items()):
 
-    for user_id, last_time in user_last_active.items():
-        # ادمین ریست نشه
+        # خودت ریست نشی
         if user_id == ADMIN_ID:
             continue
 
-        # اگر بیشتر از ۱ ساعت گذشته → پاک شود
-        if now - last_time > 3600:
-            to_delete.append(user_id)
+        try:
+            await msg.edit_caption(
+                caption=WELCOME_TEXT,
+                parse_mode="Markdown",
+                reply_markup=main_menu(),
+            )
+        except:
+            try:
+                await msg.edit_text(
+                    WELCOME_TEXT,
+                    parse_mode="Markdown",
+                    reply_markup=main_menu(),
+                )
+            except:
+                pass
 
-    for uid in to_delete:
-        del user_last_active[uid]
+# ---------- main ----------
+def main():
+    if not TOKEN:
+        raise ValueError("BOT_TOKEN not set in Railway variables")
 
-    if to_delete:
-        print("Reset users:", to_delete)
-
-
-# ---------------- MAIN ----------------
-async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(buttons))
 
-    # اجرای ریست هر ۱ ساعت
+    # ریست هر ۱ ساعت
     app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
 
-    print("Bot is running...")
-    await app.run_polling()
-
+    print("Bot running...")
+    app.run_polling()
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    main()
