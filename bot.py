@@ -13,7 +13,7 @@ from telegram.ext import (
 )
 
 TOKEN = os.getenv("TOKEN")
-ADMIN_ID = @a1lireza1  # ← آیدی عددی خودت
+ADMIN_ID = 5772782035  # ← آیدی عددی خودت
 
 IRAN_TZ = timezone(timedelta(hours=3, minutes=30))
 
