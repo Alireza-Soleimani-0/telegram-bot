@@ -9,7 +9,8 @@ from telegram.ext import (
 )
 
 TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 5772782035
+ADMIN_ID = 5772782035   # ← آیدی عددی خودت
+
 IMAGE_PATH = "bot.jpg"
 
 user_last_message = {}
@@ -28,7 +29,7 @@ WELCOME_TEXT = (
     "Choose one of the options below 👇"
 )
 
-# ----------- UI -----------
+# ----------- MENU -----------
 def main_menu():
     keyboard = [
         [
@@ -48,9 +49,7 @@ def main_menu():
     return InlineKeyboardMarkup(keyboard)
 
 def back_button():
-    return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
-    )
+    return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="back")]])
 
 # ----------- START -----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -88,12 +87,11 @@ async def send_report(context, user, link_name):
 
         await context.bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
     except:
-        pass  # اگر بلاک کرده باشی یا خطا داد، بات نمی‌خوابه
+        pass
 
 # ----------- BUTTONS -----------
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-
     try:
         await query.answer()
     except:
@@ -102,22 +100,21 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = query.from_user
     data = query.data
 
+    # لینک‌های واقعی تو
     links = {
-        "linkedin": "https://www.linkedin.com/",
-        "stackoverflow": "https://stackoverflow.com/",
-        "github": "https://github.com/",
-        "asnet": "https://t.me/",
-        "anon": "https://t.me/",
-        "meas": "https://t.me/",
+        "linkedin": "https://www.linkedin.com/in/alirezasoleimani-",
+        "stackoverflow": "https://stackoverflow.com/users/23951445/alireza",
+        "github": "https://github.com/Alireza-Soleimani-0",
+        "asnet": "https://t.me/ASAutomation",
+        "anon": "https://t.me/NoronChat_bot?start=sec-fhhchicadf",
+        "meas": "https://t.me/+bimia6p-8dw0YTM0",
     }
 
-    # ---- اگر دکمه قدیمی بود ----
     valid_keys = set(links.keys()) | {"back", "stats"}
     if data not in valid_keys:
         await query.answer("این دکمه قدیمی است، لطفا /start بزنید", show_alert=True)
         return
 
-    # ---- back ----
     if data == "back":
         try:
             await query.edit_message_caption(
@@ -136,33 +133,25 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
         return
 
-    # ---- stats ----
     if data == "stats":
         text = "\n".join([f"{k}: {v}" for k, v in click_stats.items()])
-        try:
-            await query.edit_message_caption(
-                caption=f"📊 Stats\n\n{text}",
-                reply_markup=back_button(),
-            )
-        except:
-            pass
+        await query.edit_message_caption(
+            caption=f"📊 Stats\n\n{text}",
+            reply_markup=back_button(),
+        )
         return
 
-    # ---- لینک‌ها ----
     if data in links:
         click_stats[data] += 1
         await send_report(context, user, data)
 
-        try:
-            await query.edit_message_caption(
-                caption=f"🚀 **Open Link:**\n{links[data]}",
-                parse_mode="Markdown",
-                reply_markup=back_button(),
-            )
-        except:
-            pass
+        await query.edit_message_caption(
+            caption=f"🚀 **Open Link:**\n{links[data]}",
+            parse_mode="Markdown",
+            reply_markup=back_button(),
+        )
 
-# ----------- RESET HOURLY -----------
+# ----------- RESET EVERY HOUR -----------
 async def reset_users(context: ContextTypes.DEFAULT_TYPE):
     for user_id, msg in list(user_last_message.items()):
         if user_id == ADMIN_ID:
@@ -194,6 +183,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(buttons))
 
+    # ریست هر ۱ ساعت
     app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
 
     print("Bot running...")
