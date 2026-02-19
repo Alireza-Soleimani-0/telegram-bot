@@ -8,18 +8,12 @@ from telegram.ext import (
     ContextTypes,
 )
 
-# توکن از Railway
 TOKEN = os.getenv("BOT_TOKEN")
-
-# آیدی عددی خودت
 ADMIN_ID = 5772782035
-
 IMAGE_PATH = "bot.jpg"
 
-# ذخیره آخرین پیام کاربران برای ریست
 user_last_message = {}
 
-# آمار کلیک
 click_stats = {
     "linkedin": 0,
     "stackoverflow": 0,
@@ -34,7 +28,7 @@ WELCOME_TEXT = (
     "Choose one of the options below 👇"
 )
 
-# ---------- منو ----------
+# ----------- UI -----------
 def main_menu():
     keyboard = [
         [
@@ -58,7 +52,7 @@ def back_button():
         [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
     )
 
-# ---------- استارت ----------
+# ----------- START -----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         with open(IMAGE_PATH, "rb") as photo:
@@ -77,26 +71,33 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_last_message[update.effective_user.id] = msg
 
-# ---------- ارسال گزارش ----------
+# ----------- REPORT -----------
 async def send_report(context, user, link_name):
-    time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    username = f"@{user.username}" if user.username else "ندارد"
+    try:
+        time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        username = f"@{user.username}" if user.username else "ندارد"
 
-    text = (
-        f"📊 **New Click**\n\n"
-        f"👤 Name: {user.full_name}\n"
-        f"🆔 ID: `{user.id}`\n"
-        f"🔗 Username: {username}\n"
-        f"📍 Clicked: {link_name}\n"
-        f"⏰ Time: {time}"
-    )
+        text = (
+            f"📊 **New Click**\n\n"
+            f"👤 Name: {user.full_name}\n"
+            f"🆔 ID: `{user.id}`\n"
+            f"🔗 Username: {username}\n"
+            f"📍 Clicked: {link_name}\n"
+            f"⏰ Time: {time}"
+        )
 
-    await context.bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
+        await context.bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
+    except:
+        pass  # اگر بلاک کرده باشی یا خطا داد، بات نمی‌خوابه
 
-# ---------- دکمه‌ها ----------
+# ----------- BUTTONS -----------
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
+
+    try:
+        await query.answer()
+    except:
+        return
 
     user = query.from_user
     data = query.data
@@ -110,37 +111,60 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "meas": "https://t.me/",
     }
 
-    if data == "back":
-        await query.edit_message_caption(
-            caption=WELCOME_TEXT,
-            parse_mode="Markdown",
-            reply_markup=main_menu(),
-        )
+    # ---- اگر دکمه قدیمی بود ----
+    valid_keys = set(links.keys()) | {"back", "stats"}
+    if data not in valid_keys:
+        await query.answer("این دکمه قدیمی است، لطفا /start بزنید", show_alert=True)
         return
 
+    # ---- back ----
+    if data == "back":
+        try:
+            await query.edit_message_caption(
+                caption=WELCOME_TEXT,
+                parse_mode="Markdown",
+                reply_markup=main_menu(),
+            )
+        except:
+            try:
+                await query.edit_message_text(
+                    WELCOME_TEXT,
+                    parse_mode="Markdown",
+                    reply_markup=main_menu(),
+                )
+            except:
+                pass
+        return
+
+    # ---- stats ----
     if data == "stats":
         text = "\n".join([f"{k}: {v}" for k, v in click_stats.items()])
-        await query.edit_message_caption(
-            caption=f"📊 Stats\n\n{text}",
-            reply_markup=back_button(),
-        )
+        try:
+            await query.edit_message_caption(
+                caption=f"📊 Stats\n\n{text}",
+                reply_markup=back_button(),
+            )
+        except:
+            pass
         return
 
+    # ---- لینک‌ها ----
     if data in links:
         click_stats[data] += 1
         await send_report(context, user, data)
 
-        await query.edit_message_caption(
-            caption=f"🚀 **Open Link:**\n{links[data]}",
-            parse_mode="Markdown",
-            reply_markup=back_button(),
-        )
+        try:
+            await query.edit_message_caption(
+                caption=f"🚀 **Open Link:**\n{links[data]}",
+                parse_mode="Markdown",
+                reply_markup=back_button(),
+            )
+        except:
+            pass
 
-# ---------- ریست ساعتی ----------
+# ----------- RESET HOURLY -----------
 async def reset_users(context: ContextTypes.DEFAULT_TYPE):
     for user_id, msg in list(user_last_message.items()):
-
-        # خودت ریست نشی
         if user_id == ADMIN_ID:
             continue
 
@@ -160,17 +184,16 @@ async def reset_users(context: ContextTypes.DEFAULT_TYPE):
             except:
                 pass
 
-# ---------- main ----------
+# ----------- MAIN -----------
 def main():
     if not TOKEN:
-        raise ValueError("BOT_TOKEN not set in Railway variables")
+        raise ValueError("BOT_TOKEN not set")
 
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(buttons))
 
-    # ریست هر ۱ ساعت
     app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
 
     print("Bot running...")
