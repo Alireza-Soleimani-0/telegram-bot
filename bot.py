@@ -1,4 +1,5 @@
 import os
+import asyncio
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -9,12 +10,10 @@ from telegram.ext import (
 )
 
 TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 5772782035   # ← آیدی عددی خودت
-
+ADMIN_ID = 5772782035
 IMAGE_PATH = "bot.jpg"
 
 user_last_message = {}
-
 click_stats = {
     "linkedin": 0,
     "stackoverflow": 0,
@@ -29,7 +28,7 @@ WELCOME_TEXT = (
     "Choose one of the options below 👇"
 )
 
-# ----------- MENU -----------
+# ---------- MENU ----------
 def main_menu():
     keyboard = [
         [
@@ -51,7 +50,7 @@ def main_menu():
 def back_button():
     return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="back")]])
 
-# ----------- START -----------
+# ---------- START ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         with open(IMAGE_PATH, "rb") as photo:
@@ -70,8 +69,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_last_message[update.effective_user.id] = msg
 
-# ----------- REPORT -----------
-async def send_report(context, user, link_name):
+# ---------- REPORT (background async queue) ----------
+async def send_report_async(context, user, link_name):
     try:
         time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         username = f"@{user.username}" if user.username else "ندارد"
@@ -89,7 +88,11 @@ async def send_report(context, user, link_name):
     except:
         pass
 
-# ----------- BUTTONS -----------
+def send_report(context, user, link_name):
+    # اجرا در پس‌زمینه بدون معطل کردن کاربر
+    asyncio.create_task(send_report_async(context, user, link_name))
+
+# ---------- BUTTONS ----------
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     try:
@@ -100,7 +103,6 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = query.from_user
     data = query.data
 
-    # لینک‌های واقعی تو
     links = {
         "linkedin": "https://www.linkedin.com/in/alirezasoleimani-",
         "stackoverflow": "https://stackoverflow.com/users/23951445/alireza",
@@ -110,9 +112,9 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "meas": "https://t.me/+bimia6p-8dw0YTM0",
     }
 
-    valid_keys = set(links.keys()) | {"back", "stats"}
-    if data not in valid_keys:
-        await query.answer("این دکمه قدیمی است، لطفا /start بزنید", show_alert=True)
+    valid = set(links.keys()) | {"back", "stats"}
+    if data not in valid:
+        await query.answer("نسخه قدیمی است، /start بزنید", show_alert=True)
         return
 
     if data == "back":
@@ -123,14 +125,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=main_menu(),
             )
         except:
-            try:
-                await query.edit_message_text(
-                    WELCOME_TEXT,
-                    parse_mode="Markdown",
-                    reply_markup=main_menu(),
-                )
-            except:
-                pass
+            pass
         return
 
     if data == "stats":
@@ -143,20 +138,22 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data in links:
         click_stats[data] += 1
-        await send_report(context, user, data)
 
+        # ⚡ پاسخ فوری به کاربر
         await query.edit_message_caption(
             caption=f"🚀 **Open Link:**\n{links[data]}",
             parse_mode="Markdown",
             reply_markup=back_button(),
         )
 
-# ----------- RESET EVERY HOUR -----------
-async def reset_users(context: ContextTypes.DEFAULT_TYPE):
-    for user_id, msg in list(user_last_message.items()):
-        if user_id == ADMIN_ID:
-            continue
+        # گزارش در پس‌زمینه
+        send_report(context, user, data)
 
+# ---------- RESET ----------
+async def reset_users(context: ContextTypes.DEFAULT_TYPE):
+    for uid, msg in list(user_last_message.items()):
+        if uid == ADMIN_ID:
+            continue
         try:
             await msg.edit_caption(
                 caption=WELCOME_TEXT,
@@ -164,16 +161,9 @@ async def reset_users(context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=main_menu(),
             )
         except:
-            try:
-                await msg.edit_text(
-                    WELCOME_TEXT,
-                    parse_mode="Markdown",
-                    reply_markup=main_menu(),
-                )
-            except:
-                pass
+            pass
 
-# ----------- MAIN -----------
+# ---------- MAIN ----------
 def main():
     if not TOKEN:
         raise ValueError("BOT_TOKEN not set")
@@ -183,10 +173,10 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(buttons))
 
-    # ریست هر ۱ ساعت
+    # ریست هر ساعت
     app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
 
-    print("Bot running...")
+    print("🚀 Scalable Bot Running...")
     app.run_polling()
 
 if __name__ == "__main__":
