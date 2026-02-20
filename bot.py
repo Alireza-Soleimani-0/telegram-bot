@@ -2,6 +2,7 @@ import os
 import asyncio
 import sqlite3
 from datetime import datetime
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -9,35 +10,42 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
 )
+from telegram.error import Forbidden, BadRequest
 
+# ================== CONFIG ==================
 TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 5772782035
 IMAGE_PATH = "bot.jpg"
 DB_PATH = "bot.db"
 
-# ---------- DATABASE ----------
+# ================== DATABASE ==================
+
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS stats (
-        key TEXT PRIMARY KEY,
-        value INTEGER
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS stats (
+            key TEXT PRIMARY KEY,
+            value INTEGER
+        )
+        """
     )
-    """)
 
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY
+        )
+        """
     )
-    """)
 
     conn.commit()
     conn.close()
 
 
-def get_stat(key):
+def get_stat(key: str) -> int:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT value FROM stats WHERE key=?", (key,))
@@ -46,7 +54,7 @@ def get_stat(key):
     return row[0] if row else 0
 
 
-def inc_stat(key, amount=1):
+def inc_stat(key: str, amount: int = 1):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
@@ -58,7 +66,7 @@ def inc_stat(key, amount=1):
     conn.close()
 
 
-def add_user(user_id):
+def add_user(user_id: int):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("INSERT OR IGNORE INTO users(user_id) VALUES(?)", (user_id,))
@@ -66,7 +74,7 @@ def add_user(user_id):
     conn.close()
 
 
-def count_users():
+def count_users() -> int:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT COUNT(*) FROM users")
@@ -75,13 +83,15 @@ def count_users():
     return count
 
 
-# ---------- TEXT ----------
+# ================== TEXT ==================
 WELCOME_TEXT = (
     "🔥 <b>Welcome to Alireza Soleimani Bot</b>\n\n"
     "Choose one of the options below 👇"
 )
 
-# ---------- MENU ----------
+
+# ================== MENU ==================
+
 def main_menu():
     keyboard = [
         [
@@ -107,7 +117,7 @@ def back_button():
     )
 
 
-# ---------- SAFE EDIT ----------
+# ================== SAFE EDIT ==================
 async def safe_edit(query, text, markup):
     try:
         if query.message.photo:
@@ -126,7 +136,7 @@ async def safe_edit(query, text, markup):
         print("Edit error:", e)
 
 
-# ---------- START ----------
+# ================== START ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
@@ -141,7 +151,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="HTML",
                 reply_markup=main_menu(),
             )
-    except:
+    except Exception as e:
+        print("Photo error:", e)
         await update.message.reply_text(
             WELCOME_TEXT,
             parse_mode="HTML",
@@ -149,10 +160,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-# ---------- REPORT ----------
+# ================== ADMIN REPORT ==================
 async def send_report_async(context, user, link_name):
     try:
-        time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         username = f"@{user.username}" if user.username else "ندارد"
 
         text = (
@@ -161,7 +172,7 @@ async def send_report_async(context, user, link_name):
             f"🆔 ID: <code>{user.id}</code>\n"
             f"🔗 Username: {username}\n"
             f"📍 Clicked: {link_name}\n"
-            f"⏰ Time: {time}"
+            f"⏰ Time: {time_now}"
         )
 
         await context.bot.send_message(ADMIN_ID, text, parse_mode="HTML")
@@ -173,7 +184,7 @@ def send_report(context, user, link_name):
     asyncio.create_task(send_report_async(context, user, link_name))
 
 
-# ---------- BUTTONS ----------
+# ================== BUTTONS ==================
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -204,12 +215,12 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("نسخه قدیمی است، /start بزنید", show_alert=True)
         return
 
-    # 🔙 back
+    # ---------- BACK ----------
     if data == "back":
         await safe_edit(query, WELCOME_TEXT, main_menu())
         return
 
-    # 📊 stats (ادمین فقط)
+    # ---------- STATS (ADMIN ONLY) ----------
     if data == "stats":
         if user.id != ADMIN_ID:
             await query.answer("⛔ Access denied", show_alert=True)
@@ -225,7 +236,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await safe_edit(query, text, back_button())
         return
 
-    # ✅ ارسال لینک
+    # ---------- SEND LINK ----------
     if data in links:
         inc_stat(data)
 
@@ -236,7 +247,84 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         send_report(context, user, data)
 
 
-# ---------- MAIN ----------
+# ================== BROADCAST ==================
+async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if not update.message.reply_to_message:
+        await update.message.reply_text(
+            "❌ روی پیام ریپلای کن و /broadcast بزن"
+        )
+        return
+
+    status_msg = await update.message.reply_text("🚀 Broadcast started...")
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT user_id FROM users")
+    users = [row[0] for row in c.fetchall()]
+    conn.close()
+
+    total = len(users)
+    success = 0
+    failed = 0
+    blocked = 0
+
+    for i, user_id in enumerate(users, start=1):
+        try:
+            await context.bot.copy_message(
+                chat_id=user_id,
+                from_chat_id=update.effective_chat.id,
+                message_id=update.message.reply_to_message.message_id,
+            )
+            success += 1
+
+        except Forbidden:
+            blocked += 1
+            failed += 1
+
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("DELETE FROM users WHERE user_id=?", (user_id,))
+            conn.commit()
+            conn.close()
+
+        except BadRequest:
+            failed += 1
+
+        except Exception as e:
+            print("Broadcast error:", e)
+            failed += 1
+
+        # anti-flood
+        if i % 25 == 0:
+            await asyncio.sleep(1)
+
+        # live update
+        if i % 50 == 0:
+            try:
+                await status_msg.edit_text(
+                    f"🚀 Broadcasting...\n\n"
+                    f"👥 Total: {total}\n"
+                    f"✅ Success: {success}\n"
+                    f"❌ Failed: {failed}\n"
+                    f"🚫 Blocked: {blocked}"
+                )
+            except Exception:
+                pass
+
+    await status_msg.edit_text(
+        f"✅ Broadcast Finished\n\n"
+        f"👥 Total: {total}\n"
+        f"✅ Success: {success}\n"
+        f"❌ Failed: {failed}\n"
+        f"🚫 Blocked removed: {blocked}"
+    )
+
+
+# ================== MAIN ==================
+
 def main():
     if not TOKEN:
         raise ValueError("BOT_TOKEN not set")
@@ -246,11 +334,12 @@ def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("broadcast", broadcast))
+    app.add_handler(CommandHandler("bc", broadcast))
     app.add_handler(CallbackQueryHandler(buttons))
 
     print("🚀 Professional Bot Running...")
     app.run_polling()
 
 
-if __name__ == "__main__":
-    main()
+if
