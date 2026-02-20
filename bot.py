@@ -138,6 +138,16 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "meas": "https://t.me/+bimia6p-8dw0YTM0",
     }
 
+    # نام دکمه‌ها با ایموجی
+    button_names = {
+        "linkedin": "👔 LinkedIn",
+        "stackoverflow": "💻 Stack Overflow",
+        "github": "🐙 GitHub",
+        "asnet": "⚙️ AS Automation",
+        "anon": "👤 Anonymous",
+        "meas": "📩 About Me",
+    }
+
     valid = set(links.keys()) | {"back", "stats"}
     if data not in valid:
         await query.answer("نسخه قدیمی است، /start بزنید", show_alert=True)
@@ -163,7 +173,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         keyboard = InlineKeyboardMarkup(
             [
-                [InlineKeyboardButton("🚀 Open Link", url=links[data])],
+                [InlineKeyboardButton(button_names[data], url=links[data])],
                 [InlineKeyboardButton("🔙 Back", callback_data="back")],
             ]
         )
