@@ -1,5 +1,6 @@
 import os
-import json
+import asyncio
+from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -8,100 +9,175 @@ from telegram.ext import (
     ContextTypes,
 )
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = 5772782035
+IMAGE_PATH = "bot.jpg"
 
-DATA_FILE = "stats.json"
-
-
-# ------------------ مدیریت آمار ------------------
-def load_stats():
-    if not os.path.exists(DATA_FILE):
-        return {"start": 0, "buttons": {}}
-    with open(DATA_FILE, "r") as f:
-        return json.load(f)
-
-
-def save_stats(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f)
-
-
-# ------------------ لینک‌ها ------------------
-LINKS = {
-    "linkedin": ("👔 LinkedIn", "https://www.linkedin.com/in/alirezasoleimani-"),
-    "stackoverflow": ("💻 Stack Overflow", "https://stackoverflow.com/users/23951445/alireza"),
-    "github": ("🐙 GitHub", "https://github.com/Alireza-Soleimani-0"),
-    "asnet": ("⚙️ AS Automation", "https://t.me/ASAutomation"),
-    "anon": ("👤 Anonymous", "https://t.me/NoronChat_bot?start=sec-fhhchicadf"),
-    "meas": ("📩 About Me", "https://t.me/+bimia6p-8dw0YTM0"),
+user_last_message = {}
+click_stats = {
+    "linkedin": 0,
+    "stackoverflow": 0,
+    "github": 0,
+    "asnet": 0,
+    "anon": 0,
+    "meas": 0,
 }
 
+WELCOME_TEXT = (
+    "🔥 **Welcome to Alireza Soleimani Bot**\n\n"
+    "Choose one of the options below 👇"
+)
 
-# ------------------ استارت ------------------
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    stats = load_stats()
-    stats["start"] += 1
-    save_stats(stats)
-
+# ---------- MENU ----------
+def main_menu():
     keyboard = [
         [
-            InlineKeyboardButton(LINKS["linkedin"][0], url=LINKS["linkedin"][1]),
-            InlineKeyboardButton(LINKS["stackoverflow"][0], url=LINKS["stackoverflow"][1]),
+            InlineKeyboardButton("👔 LinkedIn", callback_data="linkedin"),
+            InlineKeyboardButton("💻 Stack Overflow", callback_data="stackoverflow"),
         ],
         [
-            InlineKeyboardButton(LINKS["github"][0], url=LINKS["github"][1]),
-            InlineKeyboardButton(LINKS["asnet"][0], url=LINKS["asnet"][1]),
+            InlineKeyboardButton("🐙 GitHub", callback_data="github"),
+            InlineKeyboardButton("⚙️ AS Automation", callback_data="asnet"),
         ],
         [
-            InlineKeyboardButton(LINKS["anon"][0], url=LINKS["anon"][1]),
-            InlineKeyboardButton(LINKS["meas"][0], url=LINKS["meas"][1]),
+            InlineKeyboardButton("👤 Anonymous", callback_data="anon"),
+            InlineKeyboardButton("📩 About Me", callback_data="meas"),
         ],
-        [
-            InlineKeyboardButton("📊 Stats", callback_data="stats"),
-        ],
+        [InlineKeyboardButton("📊 Stats", callback_data="stats")],
     ]
+    return InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text(
-        "🔥 Welcome to Alireza Soleimani Bot\n\nChoose an option 👇",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
+def back_button():
+    return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="back")]])
 
+# ---------- START ----------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        with open(IMAGE_PATH, "rb") as photo:
+            msg = await update.message.reply_photo(
+                photo=photo,
+                caption=WELCOME_TEXT,
+                parse_mode="Markdown",
+                reply_markup=main_menu(),
+            )
+    except:
+        msg = await update.message.reply_text(
+            WELCOME_TEXT,
+            parse_mode="Markdown",
+            reply_markup=main_menu(),
+        )
 
-# ------------------ دکمه Stats ------------------
+    user_last_message[update.effective_user.id] = msg
+
+# ---------- REPORT (background async queue) ----------
+async def send_report_async(context, user, link_name):
+    try:
+        time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        username = f"@{user.username}" if user.username else "ندارد"
+
+        text = (
+            f"📊 **New Click**\n\n"
+            f"👤 Name: {user.full_name}\n"
+            f"🆔 ID: `{user.id}`\n"
+            f"🔗 Username: {username}\n"
+            f"📍 Clicked: {link_name}\n"
+            f"⏰ Time: {time}"
+        )
+
+        await context.bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
+    except:
+        pass
+
+def send_report(context, user, link_name):
+    # اجرا در پس‌زمینه بدون معطل کردن کاربر
+    asyncio.create_task(send_report_async(context, user, link_name))
+
+# ---------- BUTTONS ----------
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
-
-    if query.data == "stats":
-        stats = load_stats()
-
-        text = "📊 Bot Stats\n\n"
-        text += f"🚀 Total Starts: {stats['start']}\n\n"
-        text += "🔘 Link Buttons:\n"
-
-        for key in LINKS:
-            count = stats["buttons"].get(key, 0)
-            text += f"• {LINKS[key][0]} : {count}\n"
-
-        await query.message.reply_text(text)
-
-
-# ------------------ ثبت کلیک لینک ------------------
-async def track_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message and update.message.via_bot:
+    try:
+        await query.answer()
+    except:
         return
 
+    user = query.from_user
+    data = query.data
 
-# ------------------ اجرا ------------------
+    links = {
+        "linkedin": "https://www.linkedin.com/in/alirezasoleimani-",
+        "stackoverflow": "https://stackoverflow.com/users/23951445/alireza",
+        "github": "https://github.com/Alireza-Soleimani-0",
+        "asnet": "https://t.me/ASAutomation",
+        "anon": "https://t.me/NoronChat_bot?start=sec-fhhchicadf",
+        "meas": "https://t.me/+bimia6p-8dw0YTM0",
+    }
+
+    valid = set(links.keys()) | {"back", "stats"}
+    if data not in valid:
+        await query.answer("نسخه قدیمی است، /start بزنید", show_alert=True)
+        return
+
+    if data == "back":
+        try:
+            await query.edit_message_caption(
+                caption=WELCOME_TEXT,
+                parse_mode="Markdown",
+                reply_markup=main_menu(),
+            )
+        except:
+            pass
+        return
+
+    if data == "stats":
+        text = "\n".join([f"{k}: {v}" for k, v in click_stats.items()])
+        await query.edit_message_caption(
+            caption=f"📊 Stats\n\n{text}",
+            reply_markup=back_button(),
+        )
+        return
+
+    if data in links:
+        click_stats[data] += 1
+
+        # ⚡ پاسخ فوری به کاربر
+        await query.edit_message_caption(
+            caption=f"🚀 **Open Link:**\n{links[data]}",
+            parse_mode="Markdown",
+            reply_markup=back_button(),
+        )
+
+        # گزارش در پس‌زمینه
+        send_report(context, user, data)
+
+# ---------- RESET ----------
+async def reset_users(context: ContextTypes.DEFAULT_TYPE):
+    for uid, msg in list(user_last_message.items()):
+        if uid == ADMIN_ID:
+            continue
+        try:
+            await msg.edit_caption(
+                caption=WELCOME_TEXT,
+                parse_mode="Markdown",
+                reply_markup=main_menu(),
+            )
+        except:
+            pass
+
+# ---------- MAIN ----------
 def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    if not TOKEN:
+        raise ValueError("BOT_TOKEN not set")
+
+    app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(buttons))
 
-    print("🚀 Bot Running...")
-    app.run_polling()
+    # ریست هر ساعت
+    app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
 
+    print("🚀 Scalable Bot Running...")
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
