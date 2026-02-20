@@ -84,7 +84,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="HTML",
                 reply_markup=main_menu(),
             )
-    except:
+    except Exception as e:
+        print("Photo error:", e)
         msg = await update.message.reply_text(
             WELCOME_TEXT,
             parse_mode="HTML",
@@ -149,8 +150,11 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 📊 stats
     if data == "stats":
-        text = "\n".join([f"{k}: {v}" for k, v in click_stats.items()])
-        await safe_edit(query, f"📊 <b>Stats</b>\n\n{text}", back_button())
+        text = "📊 <b>Stats</b>\n\n"
+        for k, v in click_stats.items():
+            text += f"• {k} : <b>{v}</b>\n"
+
+        await safe_edit(query, text, back_button())
         return
 
     # 🔗 links
@@ -185,7 +189,14 @@ async def reset_users(context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=main_menu(),
             )
         except:
-            pass
+            try:
+                await msg.edit_text(
+                    WELCOME_TEXT,
+                    parse_mode="HTML",
+                    reply_markup=main_menu(),
+                )
+            except:
+                pass
 
 
 # ---------- MAIN ----------
@@ -198,7 +209,8 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(buttons))
 
-    app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
+    if app.job_queue:
+        app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
 
     print("🚀 Scalable Bot Running...")
     app.run_polling()
