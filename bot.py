@@ -84,8 +84,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="HTML",
                 reply_markup=main_menu(),
             )
-    except Exception as e:
-        print("Photo error:", e)
+    except:
         msg = await update.message.reply_text(
             WELCOME_TEXT,
             parse_mode="HTML",
@@ -110,9 +109,7 @@ async def send_report_async(context, user, link_name):
             f"⏰ Time: {time}"
         )
 
-        await context.bot.send_message(
-            ADMIN_ID, text, parse_mode="HTML"
-        )
+        await context.bot.send_message(ADMIN_ID, text, parse_mode="HTML")
     except Exception as e:
         print("Report error:", e)
 
@@ -138,7 +135,6 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "meas": "https://t.me/+bimia6p-8dw0YTM0",
     }
 
-    # نام دکمه‌ها با ایموجی
     button_names = {
         "linkedin": "👔 LinkedIn",
         "stackoverflow": "💻 Stack Overflow",
@@ -167,21 +163,12 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await safe_edit(query, text, back_button())
         return
 
-    # 🔗 links
+    # ✅ ارسال لینک به صورت پیام
     if data in links:
         click_stats[data] += 1
 
-        keyboard = InlineKeyboardMarkup(
-            [
-                [InlineKeyboardButton(button_names[data], url=links[data])],
-                [InlineKeyboardButton("🔙 Back", callback_data="back")],
-            ]
-        )
-
-        await safe_edit(
-            query,
-            "👇 Click the button below",
-            keyboard,
+        await query.message.reply_text(
+            f"{button_names[data]}\n🔗 {links[data]}"
         )
 
         send_report(context, user, data)
@@ -222,7 +209,7 @@ def main():
     if app.job_queue:
         app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
 
-    print("🚀 Scalable Bot Running...")
+    print("🚀 Bot Running...")
     app.run_polling()
 
 
