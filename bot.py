@@ -15,6 +15,9 @@ IMAGE_PATH = "bot.jpg"
 
 user_last_message = {}
 
+# ✅ شمارنده استارت
+start_count = 0
+
 click_stats = {
     "linkedin": 0,
     "stackoverflow": 0,
@@ -22,6 +25,16 @@ click_stats = {
     "asnet": 0,
     "anon": 0,
     "meas": 0,
+}
+
+# ✅ نام نمایشی
+DISPLAY_NAMES = {
+    "linkedin": "👔 LinkedIn",
+    "stackoverflow": "💻 Stack Overflow",
+    "github": "🐙 GitHub",
+    "asnet": "⚙️ AS Automation",
+    "anon": "👤 Anonymous",
+    "meas": "📩 About Me",
 }
 
 WELCOME_TEXT = (
@@ -54,7 +67,6 @@ def back_button():
         [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
     )
 
-
 # ---------- SAFE EDIT ----------
 async def safe_edit(query, text, markup):
     try:
@@ -73,9 +85,11 @@ async def safe_edit(query, text, markup):
     except Exception as e:
         print("Edit error:", e)
 
-
 # ---------- START ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global start_count
+    start_count += 1
+
     try:
         with open(IMAGE_PATH, "rb") as photo:
             msg = await update.message.reply_photo(
@@ -92,7 +106,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     user_last_message[update.effective_user.id] = msg
-
 
 # ---------- REPORT ----------
 async def send_report_async(context, user, link_name):
@@ -118,7 +131,6 @@ async def send_report_async(context, user, link_name):
 
 def send_report(context, user, link_name):
     asyncio.create_task(send_report_async(context, user, link_name))
-
 
 # ---------- BUTTONS ----------
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -149,29 +161,38 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 📊 stats
     if data == "stats":
-        text = "\n".join([f"{k}: {v}" for k, v in click_stats.items()])
-        await safe_edit(query, f"📊 <b>Stats</b>\n\n{text}", back_button())
+        lines = "\n".join(
+            f"{DISPLAY_NAMES.get(k,k)} : {v}"
+            for k, v in click_stats.items()
+        )
+
+        text = (
+            "📊 <b>Stats</b>\n\n"
+            f"🚀 Starts : {start_count}\n\n"
+            f"{lines}"
+        )
+
+        await safe_edit(query, text, back_button())
         return
 
-    # 🔗 links
+    # 🔗 links (✅ بدون Open Link)
     if data in links:
         click_stats[data] += 1
 
-        keyboard = InlineKeyboardMarkup(
-            [
-                [InlineKeyboardButton("🚀 Open Link", url=links[data])],
-                [InlineKeyboardButton("🔙 Back", callback_data="back")],
-            ]
+        name = DISPLAY_NAMES.get(data, data)
+
+        text = (
+            f"👇 <b>{name}</b>\n"
+            f"<code>{links[data]}</code>"
         )
 
         await safe_edit(
             query,
-            "👇 Click the button below",
-            keyboard,
+            text,
+            back_button(),
         )
 
         send_report(context, user, data)
-
 
 # ---------- RESET ----------
 async def reset_users(context: ContextTypes.DEFAULT_TYPE):
@@ -186,7 +207,6 @@ async def reset_users(context: ContextTypes.DEFAULT_TYPE):
             )
         except:
             pass
-
 
 # ---------- MAIN ----------
 def main():
