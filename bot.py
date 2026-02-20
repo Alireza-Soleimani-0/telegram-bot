@@ -1,7 +1,10 @@
 import os
-import asyncio
-from datetime import datetime
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+import json
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -9,218 +12,122 @@ from telegram.ext import (
     ContextTypes,
 )
 
-TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 5772782035
-IMAGE_PATH = "bot.jpg"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-user_last_message = {}
+DATA_FILE = "stats.json"
 
-# ✅ شمارنده استارت
-start_count = 0
 
-click_stats = {
-    "linkedin": 0,
-    "stackoverflow": 0,
-    "github": 0,
-    "asnet": 0,
-    "anon": 0,
-    "meas": 0,
+# ------------------ فایل آمار ------------------
+def load_stats():
+    if not os.path.exists(DATA_FILE):
+        return {"start": 0, "buttons": {}}
+    with open(DATA_FILE, "r") as f:
+        return json.load(f)
+
+
+def save_stats(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f)
+
+
+# ------------------ دکمه‌ها ------------------
+BUTTONS = {
+    "site": ("🌐 Website", "https://example.com"),
+    "telegram": ("📢 Telegram", "https://t.me/example"),
+    "instagram": ("📸 Instagram", "https://instagram.com/example"),
+    "anonymous": ("👤 ناشناس", None),
 }
 
-# ✅ نام نمایشی
-DISPLAY_NAMES = {
-    "linkedin": "👔 LinkedIn",
-    "stackoverflow": "💻 Stack Overflow",
-    "github": "🐙 GitHub",
-    "asnet": "⚙️ AS Automation",
-    "anon": "👤 Anonymous",
-    "meas": "📩 About Me",
-}
 
-WELCOME_TEXT = (
-    "🔥 <b>Welcome to Alireza Soleimani Bot</b>\n\n"
-    "Choose one of the options below 👇"
-)
+# ------------------ استارت ------------------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    stats = load_stats()
+    stats["start"] += 1
+    save_stats(stats)
 
-# ---------- MENU ----------
-def main_menu():
     keyboard = [
         [
-            InlineKeyboardButton("👔 LinkedIn", callback_data="linkedin"),
-            InlineKeyboardButton("💻 Stack Overflow", callback_data="stackoverflow"),
+            InlineKeyboardButton(
+                BUTTONS["site"][0],
+                callback_data="click_site",
+            ),
+            InlineKeyboardButton(
+                BUTTONS["telegram"][0],
+                callback_data="click_telegram",
+            ),
         ],
         [
-            InlineKeyboardButton("🐙 GitHub", callback_data="github"),
-            InlineKeyboardButton("⚙️ AS Automation", callback_data="asnet"),
+            InlineKeyboardButton(
+                BUTTONS["instagram"][0],
+                callback_data="click_instagram",
+            ),
+            InlineKeyboardButton(
+                BUTTONS["anonymous"][0],
+                callback_data="click_anonymous",
+            ),
         ],
         [
-            InlineKeyboardButton("👤 Anonymous", callback_data="anon"),
-            InlineKeyboardButton("📩 About Me", callback_data="meas"),
+            InlineKeyboardButton("📊 Stats", callback_data="stats"),
         ],
-        [InlineKeyboardButton("📊 Stats", callback_data="stats")],
     ]
-    return InlineKeyboardMarkup(keyboard)
 
-
-def back_button():
-    return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
+    await update.message.reply_text(
+        "یکی از گزینه‌ها را انتخاب کن:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
-# ---------- SAFE EDIT ----------
-async def safe_edit(query, text, markup):
-    try:
-        if query.message.photo:
-            await query.edit_message_caption(
-                caption=text,
-                parse_mode="HTML",
-                reply_markup=markup,
-            )
-        else:
-            await query.edit_message_text(
-                text=text,
-                parse_mode="HTML",
-                reply_markup=markup,
-            )
-    except Exception as e:
-        print("Edit error:", e)
 
-# ---------- START ----------
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global start_count
-    start_count += 1
-
-    try:
-        with open(IMAGE_PATH, "rb") as photo:
-            msg = await update.message.reply_photo(
-                photo=photo,
-                caption=WELCOME_TEXT,
-                parse_mode="HTML",
-                reply_markup=main_menu(),
-            )
-    except:
-        msg = await update.message.reply_text(
-            WELCOME_TEXT,
-            parse_mode="HTML",
-            reply_markup=main_menu(),
-        )
-
-    user_last_message[update.effective_user.id] = msg
-
-# ---------- REPORT ----------
-async def send_report_async(context, user, link_name):
-    try:
-        time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        username = f"@{user.username}" if user.username else "ندارد"
-
-        text = (
-            f"📊 <b>New Click</b>\n\n"
-            f"👤 Name: {user.full_name}\n"
-            f"🆔 ID: <code>{user.id}</code>\n"
-            f"🔗 Username: {username}\n"
-            f"📍 Clicked: {link_name}\n"
-            f"⏰ Time: {time}"
-        )
-
-        await context.bot.send_message(
-            ADMIN_ID, text, parse_mode="HTML"
-        )
-    except Exception as e:
-        print("Report error:", e)
-
-
-def send_report(context, user, link_name):
-    asyncio.create_task(send_report_async(context, user, link_name))
-
-# ---------- BUTTONS ----------
-async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ------------------ هندل کلیک ------------------
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    user = query.from_user
+    stats = load_stats()
+
     data = query.data
 
-    links = {
-        "linkedin": "https://www.linkedin.com/in/alirezasoleimani-",
-        "stackoverflow": "https://stackoverflow.com/users/23951445/alireza",
-        "github": "https://github.com/Alireza-Soleimani-0",
-        "asnet": "https://t.me/ASAutomation",
-        "anon": "https://t.me/NoronChat_bot?start=sec-fhhchicadf",
-        "meas": "https://t.me/+bimia6p-8dw0YTM0",
-    }
-
-    valid = set(links.keys()) | {"back", "stats"}
-    if data not in valid:
-        await query.answer("نسخه قدیمی است، /start بزنید", show_alert=True)
-        return
-
-    # 🔙 back
-    if data == "back":
-        await safe_edit(query, WELCOME_TEXT, main_menu())
-        return
-
-    # 📊 stats
+    # ---------- آمار ----------
     if data == "stats":
-        lines = "\n".join(
-            f"{DISPLAY_NAMES.get(k,k)} : {v}"
-            for k, v in click_stats.items()
-        )
+        text = "📊 آمار ربات:\n\n"
+        text += f"🚀 تعداد استارت: {stats['start']}\n\n"
 
-        text = (
-            "📊 <b>Stats</b>\n\n"
-            f"🚀 Starts : {start_count}\n\n"
-            f"{lines}"
-        )
+        text += "📌 کلیک دکمه‌ها:\n"
+        for key in BUTTONS:
+            count = stats["buttons"].get(key, 0)
+            text += f"• {BUTTONS[key][0]} : {count}\n"
 
-        await safe_edit(query, text, back_button())
+        await query.message.reply_text(text)
         return
 
-    # 🔗 links (✅ بدون Open Link)
-    if data in links:
-        click_stats[data] += 1
+    # ---------- کلیک دکمه ----------
+    if data.startswith("click_"):
+        key = data.replace("click_", "")
 
-        name = DISPLAY_NAMES.get(data, data)
+        # افزایش آمار
+        stats["buttons"][key] = stats["buttons"].get(key, 0) + 1
+        save_stats(stats)
 
-        text = (
-            f"👇 <b>{name}</b>\n"
-            f"<code>{links[data]}</code>"
-        )
+        name, link = BUTTONS[key]
 
-        await safe_edit(
-            query,
-            text,
-            back_button(),
-        )
-
-        send_report(context, user, data)
-
-# ---------- RESET ----------
-async def reset_users(context: ContextTypes.DEFAULT_TYPE):
-    for uid, msg in list(user_last_message.items()):
-        if uid == ADMIN_ID:
-            continue
-        try:
-            await msg.edit_caption(
-                caption=WELCOME_TEXT,
-                parse_mode="HTML",
-                reply_markup=main_menu(),
+        # اگر لینک داشت → باز کن
+        if link:
+            await query.message.reply_text(
+                f"🔗 {name}\n{link}"
             )
-        except:
-            pass
+        else:
+            await query.message.reply_text(
+                "✉️ پیام ناشناس ارسال شد!"
+            )
 
-# ---------- MAIN ----------
+
+# ------------------ اجرا ------------------
 def main():
-    if not TOKEN:
-        raise ValueError("BOT_TOKEN not set")
-
-    app = ApplicationBuilder().token(TOKEN).build()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(buttons))
+    app.add_handler(CallbackQueryHandler(button_handler))
 
-    app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
-
-    print("🚀 Scalable Bot Running...")
+    print("✅ Bot is running...")
     app.run_polling()
 
 
