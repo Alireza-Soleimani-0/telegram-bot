@@ -14,7 +14,6 @@ ADMIN_ID = 5772782035
 IMAGE_PATH = "bot.jpg"
 
 user_last_message = {}
-
 click_stats = {
     "linkedin": 0,
     "stackoverflow": 0,
@@ -25,7 +24,7 @@ click_stats = {
 }
 
 WELCOME_TEXT = (
-    "🔥 <b>Welcome to Alireza Soleimani Bot</b>\n\n"
+    "🔥 **Welcome to Alireza Soleimani Bot**\n\n"
     "Choose one of the options below 👇"
 )
 
@@ -41,42 +40,15 @@ def main_menu():
             InlineKeyboardButton("⚙️ AS Automation", callback_data="asnet"),
         ],
         [
-            # 🔥 اینجا مستقیم url گذاشتیم
-            InlineKeyboardButton(
-                "👤 Anonymous",
-                url="https://t.me/NoronChat_bot?start=sec-fhhchicadf",
-            ),
+            InlineKeyboardButton("👤 Anonymous", callback_data="anon"),
             InlineKeyboardButton("📩 About Me", callback_data="meas"),
         ],
         [InlineKeyboardButton("📊 Stats", callback_data="stats")],
     ]
     return InlineKeyboardMarkup(keyboard)
 
-
 def back_button():
-    return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
-    )
-
-
-# ---------- SAFE EDIT ----------
-async def safe_edit(query, text, markup):
-    try:
-        if query.message.photo:
-            await query.edit_message_caption(
-                caption=text,
-                parse_mode="HTML",
-                reply_markup=markup,
-            )
-        else:
-            await query.edit_message_text(
-                text=text,
-                parse_mode="HTML",
-                reply_markup=markup,
-            )
-    except Exception as e:
-        print("Edit error:", e)
-
+    return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="back")]])
 
 # ---------- START ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -85,53 +57,48 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg = await update.message.reply_photo(
                 photo=photo,
                 caption=WELCOME_TEXT,
-                parse_mode="HTML",
+                parse_mode="Markdown",
                 reply_markup=main_menu(),
             )
     except:
         msg = await update.message.reply_text(
             WELCOME_TEXT,
-            parse_mode="HTML",
+            parse_mode="Markdown",
             reply_markup=main_menu(),
         )
 
     user_last_message[update.effective_user.id] = msg
 
-
-# ---------- REPORT ----------
+# ---------- REPORT (background async queue) ----------
 async def send_report_async(context, user, link_name):
     try:
-        time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         username = f"@{user.username}" if user.username else "ندارد"
 
         text = (
-            f"📊 <b>New Click</b>\n\n"
+            f"📊 **New Click**\n\n"
             f"👤 Name: {user.full_name}\n"
-            f"🆔 ID: <code>{user.id}</code>\n"
+            f"🆔 ID: `{user.id}`\n"
             f"🔗 Username: {username}\n"
             f"📍 Clicked: {link_name}\n"
-            f"⏰ Time: {time_now}"
+            f"⏰ Time: {time}"
         )
 
-        await context.bot.send_message(
-            ADMIN_ID,
-            text,
-            parse_mode="HTML",
-        )
-    except Exception as e:
-        print("Report error:", e)
-
+        await context.bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
+    except:
+        pass
 
 def send_report(context, user, link_name):
-    context.application.create_task(
-        send_report_async(context, user, link_name)
-    )
-
+    # اجرا در پس‌زمینه بدون معطل کردن کاربر
+    asyncio.create_task(send_report_async(context, user, link_name))
 
 # ---------- BUTTONS ----------
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
+    try:
+        await query.answer()
+    except:
+        return
 
     user = query.from_user
     data = query.data
@@ -141,6 +108,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "stackoverflow": "https://stackoverflow.com/users/23951445/alireza",
         "github": "https://github.com/Alireza-Soleimani-0",
         "asnet": "https://t.me/ASAutomation",
+        "anon": "https://t.me/NoronChat_bot?start=sec-fhhchicadf",
         "meas": "https://t.me/+bimia6p-8dw0YTM0",
     }
 
@@ -149,36 +117,37 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("نسخه قدیمی است، /start بزنید", show_alert=True)
         return
 
-    # 🔙 back
     if data == "back":
-        await safe_edit(query, WELCOME_TEXT, main_menu())
+        try:
+            await query.edit_message_caption(
+                caption=WELCOME_TEXT,
+                parse_mode="Markdown",
+                reply_markup=main_menu(),
+            )
+        except:
+            pass
         return
 
-    # 📊 stats
     if data == "stats":
         text = "\n".join([f"{k}: {v}" for k, v in click_stats.items()])
-        await safe_edit(query, f"📊 <b>Stats</b>\n\n{text}", back_button())
+        await query.edit_message_caption(
+            caption=f"📊 Stats\n\n{text}",
+            reply_markup=back_button(),
+        )
         return
 
-    # 🔗 بقیه لینک‌ها
     if data in links:
         click_stats[data] += 1
 
-        keyboard = InlineKeyboardMarkup(
-            [
-                [InlineKeyboardButton("🚀 Open Link", url=links[data])],
-                [InlineKeyboardButton("🔙 Back", callback_data="back")],
-            ]
+        # ⚡ پاسخ فوری به کاربر
+        await query.edit_message_caption(
+            caption=f"🚀 **Open Link:**\n{links[data]}",
+            parse_mode="Markdown",
+            reply_markup=back_button(),
         )
 
-        await safe_edit(
-            query,
-            "👇 Click the button below",
-            keyboard,
-        )
-
+        # گزارش در پس‌زمینه
         send_report(context, user, data)
-
 
 # ---------- RESET ----------
 async def reset_users(context: ContextTypes.DEFAULT_TYPE):
@@ -188,12 +157,11 @@ async def reset_users(context: ContextTypes.DEFAULT_TYPE):
         try:
             await msg.edit_caption(
                 caption=WELCOME_TEXT,
-                parse_mode="HTML",
+                parse_mode="Markdown",
                 reply_markup=main_menu(),
             )
         except:
             pass
-
 
 # ---------- MAIN ----------
 def main():
@@ -205,12 +173,11 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(buttons))
 
-    if app.job_queue:
-        app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
+    # ریست هر ساعت
+    app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
 
     print("🚀 Scalable Bot Running...")
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()
