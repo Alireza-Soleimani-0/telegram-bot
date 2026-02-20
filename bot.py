@@ -14,10 +14,6 @@ ADMIN_ID = 5772782035
 IMAGE_PATH = "bot.jpg"
 
 user_last_message = {}
-
-# ✅ شمارنده استارت
-start_count = 0
-
 click_stats = {
     "linkedin": 0,
     "stackoverflow": 0,
@@ -25,16 +21,6 @@ click_stats = {
     "asnet": 0,
     "anon": 0,
     "meas": 0,
-}
-
-# ✅ نام نمایشی دکمه‌ها
-DISPLAY_NAMES = {
-    "linkedin": "👔 LinkedIn",
-    "stackoverflow": "💻 Stack Overflow",
-    "github": "🐙 GitHub",
-    "asnet": "⚙️ AS Automation",
-    "anon": "👤 Anonymous",
-    "meas": "📩 About Me",
 }
 
 WELCOME_TEXT = (
@@ -66,9 +52,6 @@ def back_button():
 
 # ---------- START ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global start_count
-    start_count += 1  # ✅ افزایش شمارنده
-
     try:
         with open(IMAGE_PATH, "rb") as photo:
             msg = await update.message.reply_photo(
@@ -86,7 +69,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_last_message[update.effective_user.id] = msg
 
-# ---------- REPORT ----------
+# ---------- REPORT (background async queue) ----------
 async def send_report_async(context, user, link_name):
     try:
         time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -106,6 +89,7 @@ async def send_report_async(context, user, link_name):
         pass
 
 def send_report(context, user, link_name):
+    # اجرا در پس‌زمینه بدون معطل کردن کاربر
     asyncio.create_task(send_report_async(context, user, link_name))
 
 # ---------- BUTTONS ----------
@@ -133,7 +117,6 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("نسخه قدیمی است، /start بزنید", show_alert=True)
         return
 
-    # ---------- BACK ----------
     if data == "back":
         try:
             await query.edit_message_caption(
@@ -145,38 +128,25 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
         return
 
-    # ---------- STATS ----------
     if data == "stats":
-        stats_lines = "\n".join(
-            [f"{DISPLAY_NAMES.get(k,k)} : {v}" for k, v in click_stats.items()]
-        )
-
-        caption = (
-            "📊 **Bot Stats**\n\n"
-            f"🚀 Starts : {start_count}\n\n"
-            f"{stats_lines}"
-        )
-
+        text = "\n".join([f"{k}: {v}" for k, v in click_stats.items()])
         await query.edit_message_caption(
-            caption=caption,
-            parse_mode="Markdown",
+            caption=f"📊 Stats\n\n{text}",
             reply_markup=back_button(),
         )
         return
 
-    # ---------- LINKS ----------
     if data in links:
         click_stats[data] += 1
 
-        # ✅ نمایش اسم لینک با ایموجی
-        name = DISPLAY_NAMES.get(data, data)
-
+        # ⚡ پاسخ فوری به کاربر
         await query.edit_message_caption(
-            caption=f"🚀 **{name}**\n{links[data]}",
+            caption=f"🚀 **Open Link:**\n{links[data]}",
             parse_mode="Markdown",
             reply_markup=back_button(),
         )
 
+        # گزارش در پس‌زمینه
         send_report(context, user, data)
 
 # ---------- RESET ----------
@@ -203,6 +173,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(buttons))
 
+    # ریست هر ساعت
     app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
 
     print("🚀 Scalable Bot Running...")
