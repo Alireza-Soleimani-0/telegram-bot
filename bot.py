@@ -8,76 +8,64 @@ from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     CallbackQueryHandler,
+    MessageHandler,
     ContextTypes,
+    filters,
 )
 from telegram.error import Forbidden, BadRequest
 
 # ================== CONFIG ==================
-TOKEN = os.getenv("BOT_TOKEN")  # یا توکن را مستقیم بگذار
+TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 5772782035
 IMAGE_PATH = "bot.jpg"
 DB_PATH = "bot.db"
 
-# ================== DATABASE ==================
+# ================== FAST DATABASE ==================
+conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+cursor = conn.cursor()
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    c.execute("""
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS stats (
             key TEXT PRIMARY KEY,
             value INTEGER
         )
     """)
 
-    c.execute("""
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY
         )
     """)
-
     conn.commit()
-    conn.close()
-
 
 def get_stat(key: str) -> int:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT value FROM stats WHERE key=?", (key,))
-    row = c.fetchone()
-    conn.close()
+    cursor.execute("SELECT value FROM stats WHERE key=?", (key,))
+    row = cursor.fetchone()
     return row[0] if row else 0
 
-
 def inc_stat(key: str, amount: int = 1):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
+    cursor.execute(
         "INSERT INTO stats(key,value) VALUES(?,?) "
         "ON CONFLICT(key) DO UPDATE SET value=value+?",
         (key, amount, amount),
     )
     conn.commit()
-    conn.close()
-
 
 def add_user(user_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("INSERT OR IGNORE INTO users(user_id) VALUES(?)", (user_id,))
+    cursor.execute(
+        "INSERT OR IGNORE INTO users(user_id) VALUES(?)",
+        (user_id,),
+    )
     conn.commit()
-    conn.close()
 
+def get_all_users():
+    cursor.execute("SELECT user_id FROM users")
+    return [row[0] for row in cursor.fetchall()]
 
 def count_users() -> int:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM users")
-    count = c.fetchone()[0]
-    conn.close()
-    return count
-
+    cursor.execute("SELECT COUNT(*) FROM users")
+    return cursor.fetchone()[0]
 
 # ================== TEXT ==================
 WELCOME_TEXT = (
@@ -86,7 +74,6 @@ WELCOME_TEXT = (
 )
 
 # ================== MENU ==================
-
 def main_menu():
     keyboard = [
         [
@@ -104,7 +91,6 @@ def main_menu():
         [InlineKeyboardButton("📊 Stats", callback_data="stats")],
     ]
     return InlineKeyboardMarkup(keyboard)
-
 
 def back_button():
     return InlineKeyboardMarkup(
@@ -126,8 +112,8 @@ async def safe_edit(query, text, markup):
                 parse_mode="HTML",
                 reply_markup=markup,
             )
-    except Exception as e:
-        print("Edit error:", e)
+    except Exception:
+        pass
 
 # ================== START ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -144,41 +130,36 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="HTML",
                 reply_markup=main_menu(),
             )
-    except Exception as e:
-        print("Photo error:", e)
+    except:
         await update.message.reply_text(
             WELCOME_TEXT,
             parse_mode="HTML",
             reply_markup=main_menu(),
         )
 
-# ================== ADMIN REPORT ==================
-async def send_report_async(context, user, link_name):
+# ================== ADMIN REPORT (ASYNC TURBO) ==================
+async def send_report(context, user, link_name):
     try:
         time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         username = f"@{user.username}" if user.username else "ندارد"
 
         text = (
             f"📊 <b>New Click</b>\n\n"
-            f"👤 Name: {user.full_name}\n"
-            f"🆔 ID: <code>{user.id}</code>\n"
-            f"🔗 Username: {username}\n"
-            f"📍 Clicked: {link_name}\n"
-            f"⏰ Time: {time_now}"
+            f"👤 {user.full_name}\n"
+            f"🆔 <code>{user.id}</code>\n"
+            f"🔗 {username}\n"
+            f"📍 {link_name}\n"
+            f"⏰ {time_now}"
         )
 
         await context.bot.send_message(ADMIN_ID, text, parse_mode="HTML")
-    except Exception as e:
-        print("Report error:", e)
-
-
-def send_report(context, user, link_name):
-    asyncio.create_task(send_report_async(context, user, link_name))
+    except:
+        pass
 
 # ================== BUTTONS ==================
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
+    await query.answer(cache_time=60)  # ⚡ پاسخ فوری
 
     user = query.from_user
     data = query.data
@@ -201,11 +182,6 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "meas": "📩 About Me",
     }
 
-    valid = set(links.keys()) | {"back", "stats"}
-    if data not in valid:
-        await query.answer("نسخه قدیمی است، /start بزنید", show_alert=True)
-        return
-
     if data == "back":
         await safe_edit(query, WELCOME_TEXT, main_menu())
         return
@@ -215,13 +191,11 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("⛔ Access denied", show_alert=True)
             return
 
-        text = "📊 <b>Bot Stats</b>\n\n"
-        text += f"👥 Users : <b>{count_users()}</b>\n"
-        text += f"🚀 Total Starts : <b>{get_stat('total_starts')}</b>\n\n"
-
-        for key in links.keys():
-            text += f"• {key} : <b>{get_stat(key)}</b>\n"
-
+        text = (
+            "📊 <b>Bot Stats</b>\n\n"
+            f"👥 Users : <b>{count_users()}</b>\n"
+            f"🚀 Total Starts : <b>{get_stat('total_starts')}</b>\n"
+        )
         await safe_edit(query, text, back_button())
         return
 
@@ -229,67 +203,61 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         inc_stat(data)
 
         await query.message.reply_text(
-            f"{button_names[data]}\n🔗 {links[data]}"
+            f"{button_names[data]}\n🔗 {links[data]}",
+            disable_web_page_preview=True,
         )
 
-        send_report(context, user, data)
+        asyncio.create_task(send_report(context, user, data))
 
-# ================== BROADCAST ==================
-async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+# ================== 🚀 TURBO BROADCAST ==================
+async def sms_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+
+    if msg.from_user.id != ADMIN_ID:
         return
 
-    if not update.message.reply_to_message:
-        await update.message.reply_text("❌ روی پیام ریپلای کن و /broadcast بزن")
+    if not msg.reply_to_message:
+        await msg.reply_text("❌ روی پیام ریپلای کن بعد sms بفرست")
         return
 
-    status_msg = await update.message.reply_text("🚀 Broadcast started...")
+    status = await msg.reply_text("🚀 Turbo SMS started...")
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT user_id FROM users")
-    users = [row[0] for row in c.fetchall()]
-    conn.close()
-
+    users = get_all_users()
     total = len(users)
+
     success = 0
     failed = 0
     blocked = 0
 
-    for i, user_id in enumerate(users, start=1):
-        try:
-            await context.bot.copy_message(
-                chat_id=user_id,
-                from_chat_id=update.effective_chat.id,
-                message_id=update.message.reply_to_message.message_id,
-            )
-            success += 1
+    sem = asyncio.Semaphore(30)  # ⚡ سرعت بالا
 
-        except Forbidden:
-            blocked += 1
-            failed += 1
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute("DELETE FROM users WHERE user_id=?", (user_id,))
-            conn.commit()
-            conn.close()
+    async def send_one(uid):
+        nonlocal success, failed, blocked
+        async with sem:
+            try:
+                await context.bot.copy_message(
+                    chat_id=uid,
+                    from_chat_id=msg.chat_id,
+                    message_id=msg.reply_to_message.message_id,
+                )
+                success += 1
+            except Forbidden:
+                blocked += 1
+                failed += 1
+            except BadRequest:
+                failed += 1
+            except Exception:
+                failed += 1
 
-        except BadRequest:
-            failed += 1
+    tasks = [asyncio.create_task(send_one(u)) for u in users]
+    await asyncio.gather(*tasks)
 
-        except Exception as e:
-            print("Broadcast error:", e)
-            failed += 1
-
-        if i % 25 == 0:
-            await asyncio.sleep(1)
-
-    await status_msg.edit_text(
-        f"✅ Broadcast Finished\n\n"
+    await status.edit_text(
+        f"✅ SMS Finished\n\n"
         f"👥 Total: {total}\n"
         f"✅ Success: {success}\n"
         f"❌ Failed: {failed}\n"
-        f"🚫 Blocked removed: {blocked}"
+        f"🚫 Blocked: {blocked}"
     )
 
 # ================== MAIN ==================
@@ -302,13 +270,13 @@ def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("broadcast", broadcast))
-    app.add_handler(CommandHandler("bc", broadcast))
     app.add_handler(CallbackQueryHandler(buttons))
+    app.add_handler(
+        MessageHandler(filters.TEXT & filters.Regex(r"(?i)^sms$"), sms_broadcast)
+    )
 
-    print("🚀 Professional Bot Running...")
+    print("🚀 TURBO BOT RUNNING...")
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()
