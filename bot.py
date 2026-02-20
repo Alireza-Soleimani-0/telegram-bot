@@ -1,10 +1,6 @@
 import os
 import json
-from telegram import (
-    Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -17,7 +13,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATA_FILE = "stats.json"
 
 
-# ------------------ فایل آمار ------------------
+# ------------------ مدیریت آمار ------------------
 def load_stats():
     if not os.path.exists(DATA_FILE):
         return {"start": 0, "buttons": {}}
@@ -30,12 +26,14 @@ def save_stats(data):
         json.dump(data, f)
 
 
-# ------------------ دکمه‌ها ------------------
-BUTTONS = {
-    "site": ("🌐 Website", "https://example.com"),
-    "telegram": ("📢 Telegram", "https://t.me/example"),
-    "instagram": ("📸 Instagram", "https://instagram.com/example"),
-    "anonymous": ("👤 ناشناس", None),
+# ------------------ لینک‌ها ------------------
+LINKS = {
+    "linkedin": ("👔 LinkedIn", "https://www.linkedin.com/in/alirezasoleimani-"),
+    "stackoverflow": ("💻 Stack Overflow", "https://stackoverflow.com/users/23951445/alireza"),
+    "github": ("🐙 GitHub", "https://github.com/Alireza-Soleimani-0"),
+    "asnet": ("⚙️ AS Automation", "https://t.me/ASAutomation"),
+    "anon": ("👤 Anonymous", "https://t.me/NoronChat_bot?start=sec-fhhchicadf"),
+    "meas": ("📩 About Me", "https://t.me/+bimia6p-8dw0YTM0"),
 }
 
 
@@ -47,24 +45,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [
         [
-            InlineKeyboardButton(
-                BUTTONS["site"][0],
-                callback_data="click_site",
-            ),
-            InlineKeyboardButton(
-                BUTTONS["telegram"][0],
-                callback_data="click_telegram",
-            ),
+            InlineKeyboardButton(LINKS["linkedin"][0], url=LINKS["linkedin"][1]),
+            InlineKeyboardButton(LINKS["stackoverflow"][0], url=LINKS["stackoverflow"][1]),
         ],
         [
-            InlineKeyboardButton(
-                BUTTONS["instagram"][0],
-                callback_data="click_instagram",
-            ),
-            InlineKeyboardButton(
-                BUTTONS["anonymous"][0],
-                callback_data="click_anonymous",
-            ),
+            InlineKeyboardButton(LINKS["github"][0], url=LINKS["github"][1]),
+            InlineKeyboardButton(LINKS["asnet"][0], url=LINKS["asnet"][1]),
+        ],
+        [
+            InlineKeyboardButton(LINKS["anon"][0], url=LINKS["anon"][1]),
+            InlineKeyboardButton(LINKS["meas"][0], url=LINKS["meas"][1]),
         ],
         [
             InlineKeyboardButton("📊 Stats", callback_data="stats"),
@@ -72,52 +62,34 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     await update.message.reply_text(
-        "یکی از گزینه‌ها را انتخاب کن:",
+        "🔥 Welcome to Alireza Soleimani Bot\n\nChoose an option 👇",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
 
-# ------------------ هندل کلیک ------------------
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ------------------ دکمه Stats ------------------
+async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    stats = load_stats()
+    if query.data == "stats":
+        stats = load_stats()
 
-    data = query.data
+        text = "📊 Bot Stats\n\n"
+        text += f"🚀 Total Starts: {stats['start']}\n\n"
+        text += "🔘 Link Buttons:\n"
 
-    # ---------- آمار ----------
-    if data == "stats":
-        text = "📊 آمار ربات:\n\n"
-        text += f"🚀 تعداد استارت: {stats['start']}\n\n"
-
-        text += "📌 کلیک دکمه‌ها:\n"
-        for key in BUTTONS:
+        for key in LINKS:
             count = stats["buttons"].get(key, 0)
-            text += f"• {BUTTONS[key][0]} : {count}\n"
+            text += f"• {LINKS[key][0]} : {count}\n"
 
         await query.message.reply_text(text)
+
+
+# ------------------ ثبت کلیک لینک ------------------
+async def track_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message and update.message.via_bot:
         return
-
-    # ---------- کلیک دکمه ----------
-    if data.startswith("click_"):
-        key = data.replace("click_", "")
-
-        # افزایش آمار
-        stats["buttons"][key] = stats["buttons"].get(key, 0) + 1
-        save_stats(stats)
-
-        name, link = BUTTONS[key]
-
-        # اگر لینک داشت → باز کن
-        if link:
-            await query.message.reply_text(
-                f"🔗 {name}\n{link}"
-            )
-        else:
-            await query.message.reply_text(
-                "✉️ پیام ناشناس ارسال شد!"
-            )
 
 
 # ------------------ اجرا ------------------
@@ -125,9 +97,9 @@ def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(CallbackQueryHandler(buttons))
 
-    print("✅ Bot is running...")
+    print("🚀 Bot Running...")
     app.run_polling()
 
 
