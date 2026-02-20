@@ -9,6 +9,8 @@ from telegram.ext import (
     CommandHandler,
     CallbackQueryHandler,
     ContextTypes,
+    MessageHandler,
+    filters,
 )
 from telegram.error import Forbidden, BadRequest
 
@@ -264,12 +266,14 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================== SMS BROADCAST ==================
 async def sms(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # only admin
     if update.effective_user.id != ADMIN_ID:
         return
 
+    # must be reply
     if not update.message.reply_to_message:
         await update.message.reply_text(
-            "❌ روی پیام ریپلای کن و /sms بزن"
+            "❌ روی پیام ریپلای کن و بنویس sms"
         )
         return
 
@@ -347,7 +351,8 @@ def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("sms", sms))
+    # trigger by plain text "sms" when replying
+    app.add_handler(MessageHandler(filters.Regex(r"(?i)^sms$"), sms))
     app.add_handler(CallbackQueryHandler(buttons))
 
     print("🚀 SUPER Professional Bot Running...")
