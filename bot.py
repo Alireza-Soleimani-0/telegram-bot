@@ -41,7 +41,11 @@ def main_menu():
             InlineKeyboardButton("⚙️ AS Automation", callback_data="asnet"),
         ],
         [
-            InlineKeyboardButton("👤 Anonymous", callback_data="anon"),
+            # 🔥 اینجا مستقیم url گذاشتیم
+            InlineKeyboardButton(
+                "👤 Anonymous",
+                url="https://t.me/NoronChat_bot?start=sec-fhhchicadf",
+            ),
             InlineKeyboardButton("📩 About Me", callback_data="meas"),
         ],
         [InlineKeyboardButton("📊 Stats", callback_data="stats")],
@@ -97,7 +101,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------- REPORT ----------
 async def send_report_async(context, user, link_name):
     try:
-        time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         username = f"@{user.username}" if user.username else "ندارد"
 
         text = (
@@ -106,18 +110,22 @@ async def send_report_async(context, user, link_name):
             f"🆔 ID: <code>{user.id}</code>\n"
             f"🔗 Username: {username}\n"
             f"📍 Clicked: {link_name}\n"
-            f"⏰ Time: {time}"
+            f"⏰ Time: {time_now}"
         )
 
         await context.bot.send_message(
-            ADMIN_ID, text, parse_mode="HTML"
+            ADMIN_ID,
+            text,
+            parse_mode="HTML",
         )
     except Exception as e:
         print("Report error:", e)
 
 
 def send_report(context, user, link_name):
-    asyncio.create_task(send_report_async(context, user, link_name))
+    context.application.create_task(
+        send_report_async(context, user, link_name)
+    )
 
 
 # ---------- BUTTONS ----------
@@ -133,7 +141,6 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "stackoverflow": "https://stackoverflow.com/users/23951445/alireza",
         "github": "https://github.com/Alireza-Soleimani-0",
         "asnet": "https://t.me/ASAutomation",
-        "anon": "https://t.me/NoronChat_bot?start=sec-fhhchicadf",
         "meas": "https://t.me/+bimia6p-8dw0YTM0",
     }
 
@@ -153,7 +160,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await safe_edit(query, f"📊 <b>Stats</b>\n\n{text}", back_button())
         return
 
-    # 🔗 links
+    # 🔗 بقیه لینک‌ها
     if data in links:
         click_stats[data] += 1
 
@@ -198,7 +205,8 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(buttons))
 
-    app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
+    if app.job_queue:
+        app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
 
     print("🚀 Scalable Bot Running...")
     app.run_polling()
