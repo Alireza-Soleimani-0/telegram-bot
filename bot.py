@@ -82,10 +82,11 @@ def main_menu():
 def back_button():
     return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="back")]])
 
-# ================= SAFE EDIT =================
+# ================= SAFE EDIT (FIXED) =================
 async def safe_edit(query, text, markup):
     try:
-        if query.message.photo:
+        msg = query.message
+        if msg and msg.photo:
             await query.edit_message_caption(
                 caption=text,
                 parse_mode="Markdown",
@@ -103,8 +104,6 @@ async def safe_edit(query, text, markup):
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-
-    # ذخیره در دیتابیس (سریع و بدون تکرار)
     add_user(user_id)
 
     try:
@@ -171,27 +170,31 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("نسخه قدیمی است، /start بزنید", show_alert=True)
         return
 
+    # 🔙 back
     if data == "back":
         await safe_edit(query, WELCOME_TEXT, main_menu())
         return
 
+    # 📊 stats
     if data == "stats":
         stats_lines = [f"{k}: {v}" for k, v in click_stats.items()]
         stats_lines.append(f"users_started: {get_users_count()}")
         text = "\n".join(stats_lines)
-
         await safe_edit(query, f"📊 Stats\n\n{text}", back_button())
         return
 
+    # 🔗 links
     if data in links:
         click_stats[data] += 1
 
-        await safe_edit(
-            query,
-            f"🚀 **Open Link:**\n{links[data]}",
-            back_button(),
+        keyboard = InlineKeyboardMarkup(
+            [
+                [InlineKeyboardButton("🚀 Open Link", url=links[data])],
+                [InlineKeyboardButton("🔙 Back", callback_data="back")],
+            ]
         )
 
+        await safe_edit(query, "👇 Click the button below", keyboard)
         send_report(context, user, data)
 
 # ================= RESET =================
