@@ -1,10 +1,7 @@
 import os
-import json
-from telegram import (
-    Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-)
+import asyncio
+from datetime import datetime
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -12,54 +9,41 @@ from telegram.ext import (
     ContextTypes,
 )
 
-# ================== تنظیمات ==================
 TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 5772782035  # ← آیدی عددی خودت
+ADMIN_ID = 5772782035
+IMAGE_PATH = "bot.jpg"
 
-STATS_FILE = "stats.json"
+user_last_message = {}
 
-if not TOKEN:
-    raise ValueError("❌ BOT_TOKEN is not set")
+# ✅ شمارنده استارت
+start_count = 0
 
-# ================== لینک‌ها ==================
-LINKS = {
-    "linkedin": "https://www.linkedin.com/in/alirezasoleimani-",
-    "stackoverflow": "https://stackoverflow.com/users/23951445/alireza",
-    "github": "https://github.com/Alireza-Soleimani-0",
-    "asnet": "https://t.me/ASAutomation",
-    "anonymous": "https://t.me/NoronChat_bot?start=sec-fhhchicadf",
-    "about": "https://t.me/+bimia6p-8dw0YTM0",
+click_stats = {
+    "linkedin": 0,
+    "stackoverflow": 0,
+    "github": 0,
+    "asnet": 0,
+    "anon": 0,
+    "meas": 0,
 }
 
-# ================== مدیریت آمار ==================
-def load_stats():
-    if not os.path.exists(STATS_FILE):
-        return {"starts": 0, "buttons": {}}
-    try:
-        with open(STATS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return {"starts": 0, "buttons": {}}
+# ✅ نام نمایشی دکمه‌ها
+DISPLAY_NAMES = {
+    "linkedin": "👔 LinkedIn",
+    "stackoverflow": "💻 Stack Overflow",
+    "github": "🐙 GitHub",
+    "asnet": "⚙️ AS Automation",
+    "anon": "👤 Anonymous",
+    "meas": "📩 About Me",
+}
 
+WELCOME_TEXT = (
+    "🔥 **Welcome to Alireza Soleimani Bot**\n\n"
+    "Choose one of the options below 👇"
+)
 
-def save_stats(data):
-    with open(STATS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-
-def inc_start():
-    data = load_stats()
-    data["starts"] += 1
-    save_stats(data)
-
-
-def inc_button(name):
-    data = load_stats()
-    data["buttons"][name] = data["buttons"].get(name, 0) + 1
-    save_stats(data)
-
-# ================== کیبورد ==================
-def get_keyboard():
+# ---------- MENU ----------
+def main_menu():
     keyboard = [
         [
             InlineKeyboardButton("👔 LinkedIn", callback_data="linkedin"),
@@ -70,72 +54,158 @@ def get_keyboard():
             InlineKeyboardButton("⚙️ AS Automation", callback_data="asnet"),
         ],
         [
-            InlineKeyboardButton("👤 Anonymous", callback_data="anonymous"),
-            InlineKeyboardButton("📩 About Me", callback_data="about"),
+            InlineKeyboardButton("👤 Anonymous", callback_data="anon"),
+            InlineKeyboardButton("📩 About Me", callback_data="meas"),
         ],
         [InlineKeyboardButton("📊 Stats", callback_data="stats")],
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# ================== استارت ==================
+def back_button():
+    return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="back")]])
+
+# ---------- START ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    inc_start()
+    global start_count
+    start_count += 1  # ✅ افزایش شمارنده
 
-    await update.message.reply_text(
-        "🔥 Welcome to Alireza Soleimani Bot\n\nChoose an option 👇",
-        reply_markup=get_keyboard()
-    )
+    try:
+        with open(IMAGE_PATH, "rb") as photo:
+            msg = await update.message.reply_photo(
+                photo=photo,
+                caption=WELCOME_TEXT,
+                parse_mode="Markdown",
+                reply_markup=main_menu(),
+            )
+    except:
+        msg = await update.message.reply_text(
+            WELCOME_TEXT,
+            parse_mode="Markdown",
+            reply_markup=main_menu(),
+        )
 
-# ================== دکمه‌ها ==================
+    user_last_message[update.effective_user.id] = msg
+
+# ---------- REPORT ----------
+async def send_report_async(context, user, link_name):
+    try:
+        time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        username = f"@{user.username}" if user.username else "ندارد"
+
+        text = (
+            f"📊 **New Click**\n\n"
+            f"👤 Name: {user.full_name}\n"
+            f"🆔 ID: `{user.id}`\n"
+            f"🔗 Username: {username}\n"
+            f"📍 Clicked: {link_name}\n"
+            f"⏰ Time: {time}"
+        )
+
+        await context.bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
+    except:
+        pass
+
+def send_report(context, user, link_name):
+    asyncio.create_task(send_report_async(context, user, link_name))
+
+# ---------- BUTTONS ----------
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
-
-    data = query.data
-    user = query.from_user
-
-    # ---------- آمار ----------
-    if data == "stats":
-        stats = load_stats()
-
-        text = "📊 Bot Stats\n\n"
-        text += f"🚀 Total Starts: {stats['starts']}\n\n"
-        text += "🔘 Button Clicks:\n"
-
-        if stats["buttons"]:
-            for k, v in stats["buttons"].items():
-                text += f"• {k}: {v}\n"
-        else:
-            text += "No clicks yet"
-
-        await query.message.reply_text(text)
+    try:
+        await query.answer()
+    except:
         return
 
-    # ---------- لینک‌ها ----------
-    if data in LINKS:
-        inc_button(data)
+    user = query.from_user
+    data = query.data
 
-        # گزارش به ادمین
+    links = {
+        "linkedin": "https://www.linkedin.com/in/alirezasoleimani-",
+        "stackoverflow": "https://stackoverflow.com/users/23951445/alireza",
+        "github": "https://github.com/Alireza-Soleimani-0",
+        "asnet": "https://t.me/ASAutomation",
+        "anon": "https://t.me/NoronChat_bot?start=sec-fhhchicadf",
+        "meas": "https://t.me/+bimia6p-8dw0YTM0",
+    }
+
+    valid = set(links.keys()) | {"back", "stats"}
+    if data not in valid:
+        await query.answer("نسخه قدیمی است، /start بزنید", show_alert=True)
+        return
+
+    # ---------- BACK ----------
+    if data == "back":
         try:
-            await context.bot.send_message(
-                chat_id=ADMIN_ID,
-                text=f"👆 {user.full_name} ({user.id}) clicked «{data}»"
+            await query.edit_message_caption(
+                caption=WELCOME_TEXT,
+                parse_mode="Markdown",
+                reply_markup=main_menu(),
+            )
+        except:
+            pass
+        return
+
+    # ---------- STATS ----------
+    if data == "stats":
+        stats_lines = "\n".join(
+            [f"{DISPLAY_NAMES.get(k,k)} : {v}" for k, v in click_stats.items()]
+        )
+
+        caption = (
+            "📊 **Bot Stats**\n\n"
+            f"🚀 Starts : {start_count}\n\n"
+            f"{stats_lines}"
+        )
+
+        await query.edit_message_caption(
+            caption=caption,
+            parse_mode="Markdown",
+            reply_markup=back_button(),
+        )
+        return
+
+    # ---------- LINKS ----------
+    if data in links:
+        click_stats[data] += 1
+
+        # ✅ نمایش اسم لینک با ایموجی
+        name = DISPLAY_NAMES.get(data, data)
+
+        await query.edit_message_caption(
+            caption=f"🚀 **{name}**\n{links[data]}",
+            parse_mode="Markdown",
+            reply_markup=back_button(),
+        )
+
+        send_report(context, user, data)
+
+# ---------- RESET ----------
+async def reset_users(context: ContextTypes.DEFAULT_TYPE):
+    for uid, msg in list(user_last_message.items()):
+        if uid == ADMIN_ID:
+            continue
+        try:
+            await msg.edit_caption(
+                caption=WELCOME_TEXT,
+                parse_mode="Markdown",
+                reply_markup=main_menu(),
             )
         except:
             pass
 
-        await query.message.reply_text(
-            f"🚀 Open Link:\n{LINKS[data]}"
-        )
-
-# ================== اجرا ==================
+# ---------- MAIN ----------
 def main():
+    if not TOKEN:
+        raise ValueError("BOT_TOKEN not set")
+
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(buttons))
 
-    print("🚀 Bot is running...")
+    app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
+
+    print("🚀 Scalable Bot Running...")
     app.run_polling()
 
 if __name__ == "__main__":
