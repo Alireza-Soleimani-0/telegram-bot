@@ -66,12 +66,15 @@ def inc_stat(key: str, amount: int = 1):
     conn.close()
 
 
-def add_user(user_id: int):
+def add_user(user_id: int) -> bool:
+    """Returns True if user is new"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("INSERT OR IGNORE INTO users(user_id) VALUES(?)", (user_id,))
+    is_new = c.rowcount == 1
     conn.commit()
     conn.close()
+    return is_new
 
 
 def count_users() -> int:
@@ -140,8 +143,16 @@ async def safe_edit(query, text, markup):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
-    add_user(user_id)
-    inc_stat("total_starts")  # ✅ FIXED
+    today = datetime.now().strftime("%Y_%m_%d")
+
+    is_new_user = add_user(user_id)
+
+    inc_stat("total_starts")
+    inc_stat(f"starts_{today}")
+
+    if is_new_user:
+        inc_stat("new_users_total")
+        inc_stat(f"new_users_{today}")
 
     try:
         with open(IMAGE_PATH, "rb") as photo:
@@ -226,9 +237,13 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("⛔ Access denied", show_alert=True)
             return
 
-        text = "📊 <b>Bot Stats</b>\n\n"
-        text += f"👥 Users : <b>{count_users()}</b>\n"
-        text += f"🚀 Total Starts : <b>{get_stat('total_starts')}</b>\n\n"
+        today = datetime.now().strftime("%Y_%m_%d")
+
+        text = "📊 <b>Advanced Bot Stats</b>\n\n"
+        text += f"👥 Total Users : <b>{count_users()}</b>\n"
+        text += f"🆕 New Users Today : <b>{get_stat(f'new_users_{today}')}</b>\n"
+        text += f"🚀 Total Starts : <b>{get_stat('total_starts')}</b>\n"
+        text += f"🔁 Starts Today : <b>{get_stat(f'starts_{today}')}</b>\n\n"
 
         for key in links.keys():
             text += f"• {key} : <b>{get_stat(key)}</b>\n"
@@ -247,13 +262,15 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         send_report(context, user, data)
 
 
-# ================== SMS (BROADCAST) ==================
+# ================== SMS BROADCAST ==================
 async def sms(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
 
     if not update.message.reply_to_message:
-        await update.message.reply_text("❌ روی پیام ریپلای کن و /sms بزن")
+        await update.message.reply_text(
+            "❌ روی پیام ریپلای کن و /sms بزن"
+        )
         return
 
     status_msg = await update.message.reply_text("🚀 SMS started...")
@@ -333,7 +350,7 @@ def main():
     app.add_handler(CommandHandler("sms", sms))
     app.add_handler(CallbackQueryHandler(buttons))
 
-    print("🚀 Professional Bot Running...")
+    print("🚀 SUPER Professional Bot Running...")
     app.run_polling()
 
 
