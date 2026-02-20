@@ -2,78 +2,86 @@ import os
 import asyncio
 import sqlite3
 from datetime import datetime
-
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     CallbackQueryHandler,
-    MessageHandler,
     ContextTypes,
-    filters,
 )
-from telegram.error import Forbidden, BadRequest
 
-# ================== CONFIG ==================
 TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 5772782035
 IMAGE_PATH = "bot.jpg"
 DB_PATH = "bot.db"
 
-# ================== FAST DATABASE ==================
-conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-cursor = conn.cursor()
-
+# ---------- DATABASE ----------
 def init_db():
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS stats (
-            key TEXT PRIMARY KEY,
-            value INTEGER
-        )
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS stats (
+        key TEXT PRIMARY KEY,
+        value INTEGER
+    )
     """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY
-        )
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        user_id INTEGER PRIMARY KEY
+    )
     """)
+
     conn.commit()
+    conn.close()
 
-def get_stat(key: str) -> int:
-    cursor.execute("SELECT value FROM stats WHERE key=?", (key,))
-    row = cursor.fetchone()
+
+def get_stat(key):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT value FROM stats WHERE key=?", (key,))
+    row = c.fetchone()
+    conn.close()
     return row[0] if row else 0
 
-def inc_stat(key: str, amount: int = 1):
-    cursor.execute(
+
+def inc_stat(key, amount=1):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
         "INSERT INTO stats(key,value) VALUES(?,?) "
         "ON CONFLICT(key) DO UPDATE SET value=value+?",
         (key, amount, amount),
     )
     conn.commit()
+    conn.close()
 
-def add_user(user_id: int):
-    cursor.execute(
-        "INSERT OR IGNORE INTO users(user_id) VALUES(?)",
-        (user_id,),
-    )
+
+def add_user(user_id):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("INSERT OR IGNORE INTO users(user_id) VALUES(?)", (user_id,))
     conn.commit()
+    conn.close()
 
-def get_all_users():
-    cursor.execute("SELECT user_id FROM users")
-    return [row[0] for row in cursor.fetchall()]
 
-def count_users() -> int:
-    cursor.execute("SELECT COUNT(*) FROM users")
-    return cursor.fetchone()[0]
+def count_users():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM users")
+    count = c.fetchone()[0]
+    conn.close()
+    return count
 
-# ================== TEXT ==================
+
+# ---------- TEXT ----------
 WELCOME_TEXT = (
     "🔥 <b>Welcome to Alireza Soleimani Bot</b>\n\n"
     "Choose one of the options below 👇"
 )
 
-# ================== MENU ==================
+# ---------- MENU ----------
 def main_menu():
     keyboard = [
         [
@@ -92,12 +100,14 @@ def main_menu():
     ]
     return InlineKeyboardMarkup(keyboard)
 
+
 def back_button():
     return InlineKeyboardMarkup(
         [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
     )
 
-# ================== SAFE EDIT ==================
+
+# ---------- SAFE EDIT ----------
 async def safe_edit(query, text, markup):
     try:
         if query.message.photo:
@@ -112,10 +122,11 @@ async def safe_edit(query, text, markup):
                 parse_mode="HTML",
                 reply_markup=markup,
             )
-    except Exception:
-        pass
+    except Exception as e:
+        print("Edit error:", e)
 
-# ================== START ==================
+
+# ---------- START ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
@@ -137,29 +148,35 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=main_menu(),
         )
 
-# ================== ADMIN REPORT (ASYNC TURBO) ==================
-async def send_report(context, user, link_name):
+
+# ---------- REPORT ----------
+async def send_report_async(context, user, link_name):
     try:
-        time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         username = f"@{user.username}" if user.username else "ندارد"
 
         text = (
             f"📊 <b>New Click</b>\n\n"
-            f"👤 {user.full_name}\n"
-            f"🆔 <code>{user.id}</code>\n"
-            f"🔗 {username}\n"
-            f"📍 {link_name}\n"
-            f"⏰ {time_now}"
+            f"👤 Name: {user.full_name}\n"
+            f"🆔 ID: <code>{user.id}</code>\n"
+            f"🔗 Username: {username}\n"
+            f"📍 Clicked: {link_name}\n"
+            f"⏰ Time: {time}"
         )
 
         await context.bot.send_message(ADMIN_ID, text, parse_mode="HTML")
-    except:
-        pass
+    except Exception as e:
+        print("Report error:", e)
 
-# ================== BUTTONS ==================
+
+def send_report(context, user, link_name):
+    asyncio.create_task(send_report_async(context, user, link_name))
+
+
+# ---------- BUTTONS ----------
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer(cache_time=60)  # ⚡ پاسخ فوری
+    await query.answer()
 
     user = query.from_user
     data = query.data
@@ -182,85 +199,44 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "meas": "📩 About Me",
     }
 
+    valid = set(links.keys()) | {"back", "stats"}
+    if data not in valid:
+        await query.answer("نسخه قدیمی است، /start بزنید", show_alert=True)
+        return
+
+    # 🔙 back
     if data == "back":
         await safe_edit(query, WELCOME_TEXT, main_menu())
         return
 
+    # 📊 stats (ادمین فقط)
     if data == "stats":
         if user.id != ADMIN_ID:
             await query.answer("⛔ Access denied", show_alert=True)
             return
 
-        text = (
-            "📊 <b>Bot Stats</b>\n\n"
-            f"👥 Users : <b>{count_users()}</b>\n"
-            f"🚀 Total Starts : <b>{get_stat('total_starts')}</b>\n"
-        )
+        text = "📊 <b>Bot Stats</b>\n\n"
+        text += f"👥 Users : <b>{count_users()}</b>\n"
+        text += f"🚀 Total Starts : <b>{get_stat('total_starts')}</b>\n\n"
+
+        for key in links.keys():
+            text += f"• {key} : <b>{get_stat(key)}</b>\n"
+
         await safe_edit(query, text, back_button())
         return
 
+    # ✅ ارسال لینک
     if data in links:
         inc_stat(data)
 
         await query.message.reply_text(
-            f"{button_names[data]}\n🔗 {links[data]}",
-            disable_web_page_preview=True,
+            f"{button_names[data]}\n🔗 {links[data]}"
         )
 
-        asyncio.create_task(send_report(context, user, data))
+        send_report(context, user, data)
 
-# ================== 🚀 TURBO BROADCAST ==================
-async def sms_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
 
-    if msg.from_user.id != ADMIN_ID:
-        return
-
-    if not msg.reply_to_message:
-        await msg.reply_text("❌ روی پیام ریپلای کن بعد sms بفرست")
-        return
-
-    status = await msg.reply_text("🚀 Turbo SMS started...")
-
-    users = get_all_users()
-    total = len(users)
-
-    success = 0
-    failed = 0
-    blocked = 0
-
-    sem = asyncio.Semaphore(30)  # ⚡ سرعت بالا
-
-    async def send_one(uid):
-        nonlocal success, failed, blocked
-        async with sem:
-            try:
-                await context.bot.copy_message(
-                    chat_id=uid,
-                    from_chat_id=msg.chat_id,
-                    message_id=msg.reply_to_message.message_id,
-                )
-                success += 1
-            except Forbidden:
-                blocked += 1
-                failed += 1
-            except BadRequest:
-                failed += 1
-            except Exception:
-                failed += 1
-
-    tasks = [asyncio.create_task(send_one(u)) for u in users]
-    await asyncio.gather(*tasks)
-
-    await status.edit_text(
-        f"✅ SMS Finished\n\n"
-        f"👥 Total: {total}\n"
-        f"✅ Success: {success}\n"
-        f"❌ Failed: {failed}\n"
-        f"🚫 Blocked: {blocked}"
-    )
-
-# ================== MAIN ==================
+# ---------- MAIN ----------
 def main():
     if not TOKEN:
         raise ValueError("BOT_TOKEN not set")
@@ -271,12 +247,10 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(buttons))
-    app.add_handler(
-        MessageHandler(filters.TEXT & filters.Regex(r"(?i)^sms$"), sms_broadcast)
-    )
 
-    print("🚀 TURBO BOT RUNNING...")
+    print("🚀 Professional Bot Running...")
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
