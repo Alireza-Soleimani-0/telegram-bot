@@ -1,5 +1,6 @@
 import os
 import asyncio
+import sqlite3
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -12,18 +13,69 @@ from telegram.ext import (
 TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 5772782035
 IMAGE_PATH = "bot.jpg"
+DB_PATH = "bot.db"
 
-user_last_message = {}
+# ---------- DATABASE ----------
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
 
-click_stats = {
-    "linkedin": 0,
-    "stackoverflow": 0,
-    "github": 0,
-    "asnet": 0,
-    "anon": 0,
-    "meas": 0,
-}
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS stats (
+        key TEXT PRIMARY KEY,
+        value INTEGER
+    )
+    """)
 
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        user_id INTEGER PRIMARY KEY
+    )
+    """)
+
+    conn.commit()
+    conn.close()
+
+
+def get_stat(key):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT value FROM stats WHERE key=?", (key,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else 0
+
+
+def inc_stat(key, amount=1):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO stats(key,value) VALUES(?,?) "
+        "ON CONFLICT(key) DO UPDATE SET value=value+?",
+        (key, amount, amount),
+    )
+    conn.commit()
+    conn.close()
+
+
+def add_user(user_id):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("INSERT OR IGNORE INTO users(user_id) VALUES(?)", (user_id,))
+    conn.commit()
+    conn.close()
+
+
+def count_users():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM users")
+    count = c.fetchone()[0]
+    conn.close()
+    return count
+
+
+# ---------- TEXT ----------
 WELCOME_TEXT = (
     "🔥 <b>Welcome to Alireza Soleimani Bot</b>\n\n"
     "Choose one of the options below 👇"
@@ -76,22 +128,25 @@ async def safe_edit(query, text, markup):
 
 # ---------- START ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    add_user(user_id)
+    inc_stat("total_starts")
+
     try:
         with open(IMAGE_PATH, "rb") as photo:
-            msg = await update.message.reply_photo(
+            await update.message.reply_photo(
                 photo=photo,
                 caption=WELCOME_TEXT,
                 parse_mode="HTML",
                 reply_markup=main_menu(),
             )
     except:
-        msg = await update.message.reply_text(
+        await update.message.reply_text(
             WELCOME_TEXT,
             parse_mode="HTML",
             reply_markup=main_menu(),
         )
-
-    user_last_message[update.effective_user.id] = msg
 
 
 # ---------- REPORT ----------
@@ -154,18 +209,25 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await safe_edit(query, WELCOME_TEXT, main_menu())
         return
 
-    # 📊 stats
+    # 📊 stats (ادمین فقط)
     if data == "stats":
-        text = "📊 <b>Stats</b>\n\n"
-        for k, v in click_stats.items():
-            text += f"• {k} : <b>{v}</b>\n"
+        if user.id != ADMIN_ID:
+            await query.answer("⛔ Access denied", show_alert=True)
+            return
+
+        text = "📊 <b>Bot Stats</b>\n\n"
+        text += f"👥 Users : <b>{count_users()}</b>\n"
+        text += f"🚀 Total Starts : <b>{get_stat('total_starts')}</b>\n\n"
+
+        for key in links.keys():
+            text += f"• {key} : <b>{get_stat(key)}</b>\n"
 
         await safe_edit(query, text, back_button())
         return
 
-    # ✅ ارسال لینک به صورت پیام
+    # ✅ ارسال لینک
     if data in links:
-        click_stats[data] += 1
+        inc_stat(data)
 
         await query.message.reply_text(
             f"{button_names[data]}\n🔗 {links[data]}"
@@ -174,42 +236,19 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         send_report(context, user, data)
 
 
-# ---------- RESET ----------
-async def reset_users(context: ContextTypes.DEFAULT_TYPE):
-    for uid, msg in list(user_last_message.items()):
-        if uid == ADMIN_ID:
-            continue
-        try:
-            await msg.edit_caption(
-                caption=WELCOME_TEXT,
-                parse_mode="HTML",
-                reply_markup=main_menu(),
-            )
-        except:
-            try:
-                await msg.edit_text(
-                    WELCOME_TEXT,
-                    parse_mode="HTML",
-                    reply_markup=main_menu(),
-                )
-            except:
-                pass
-
-
 # ---------- MAIN ----------
 def main():
     if not TOKEN:
         raise ValueError("BOT_TOKEN not set")
+
+    init_db()
 
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(buttons))
 
-    if app.job_queue:
-        app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
-
-    print("🚀 Bot Running...")
+    print("🚀 Professional Bot Running...")
     app.run_polling()
 
 
