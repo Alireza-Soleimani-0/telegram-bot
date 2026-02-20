@@ -1,5 +1,6 @@
 import os
 import asyncio
+import sqlite3
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -12,8 +13,10 @@ from telegram.ext import (
 TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 5772782035
 IMAGE_PATH = "bot.jpg"
+DB_PATH = "bot.db"
 
 user_last_message = {}
+
 click_stats = {
     "linkedin": 0,
     "stackoverflow": 0,
@@ -28,7 +31,36 @@ WELCOME_TEXT = (
     "Choose one of the options below 👇"
 )
 
-# ---------- MENU ----------
+# ================= DATABASE =================
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY
+        )
+        """
+    )
+    conn.commit()
+    conn.close()
+
+def add_user(user_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+    conn.commit()
+    conn.close()
+
+def get_users_count() -> int:
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM users")
+    count = cur.fetchone()[0]
+    conn.close()
+    return count
+
+# ================= MENU =================
 def main_menu():
     keyboard = [
         [
@@ -50,8 +82,31 @@ def main_menu():
 def back_button():
     return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="back")]])
 
-# ---------- START ----------
+# ================= SAFE EDIT =================
+async def safe_edit(query, text, markup):
+    try:
+        if query.message.photo:
+            await query.edit_message_caption(
+                caption=text,
+                parse_mode="Markdown",
+                reply_markup=markup,
+            )
+        else:
+            await query.edit_message_text(
+                text=text,
+                parse_mode="Markdown",
+                reply_markup=markup,
+            )
+    except Exception as e:
+        print("Edit error:", e)
+
+# ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    # ذخیره در دیتابیس (سریع و بدون تکرار)
+    add_user(user_id)
+
     try:
         with open(IMAGE_PATH, "rb") as photo:
             msg = await update.message.reply_photo(
@@ -67,9 +122,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=main_menu(),
         )
 
-    user_last_message[update.effective_user.id] = msg
+    user_last_message[user_id] = msg
 
-# ---------- REPORT (background async queue) ----------
+# ================= REPORT =================
 async def send_report_async(context, user, link_name):
     try:
         time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -85,14 +140,13 @@ async def send_report_async(context, user, link_name):
         )
 
         await context.bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
-    except:
-        pass
+    except Exception as e:
+        print("Report error:", e)
 
 def send_report(context, user, link_name):
-    # اجرا در پس‌زمینه بدون معطل کردن کاربر
     asyncio.create_task(send_report_async(context, user, link_name))
 
-# ---------- BUTTONS ----------
+# ================= BUTTONS =================
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     try:
@@ -118,38 +172,29 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "back":
-        try:
-            await query.edit_message_caption(
-                caption=WELCOME_TEXT,
-                parse_mode="Markdown",
-                reply_markup=main_menu(),
-            )
-        except:
-            pass
+        await safe_edit(query, WELCOME_TEXT, main_menu())
         return
 
     if data == "stats":
-        text = "\n".join([f"{k}: {v}" for k, v in click_stats.items()])
-        await query.edit_message_caption(
-            caption=f"📊 Stats\n\n{text}",
-            reply_markup=back_button(),
-        )
+        stats_lines = [f"{k}: {v}" for k, v in click_stats.items()]
+        stats_lines.append(f"users_started: {get_users_count()}")
+        text = "\n".join(stats_lines)
+
+        await safe_edit(query, f"📊 Stats\n\n{text}", back_button())
         return
 
     if data in links:
         click_stats[data] += 1
 
-        # ⚡ پاسخ فوری به کاربر
-        await query.edit_message_caption(
-            caption=f"🚀 **Open Link:**\n{links[data]}",
-            parse_mode="Markdown",
-            reply_markup=back_button(),
+        await safe_edit(
+            query,
+            f"🚀 **Open Link:**\n{links[data]}",
+            back_button(),
         )
 
-        # گزارش در پس‌زمینه
         send_report(context, user, data)
 
-# ---------- RESET ----------
+# ================= RESET =================
 async def reset_users(context: ContextTypes.DEFAULT_TYPE):
     for uid, msg in list(user_last_message.items()):
         if uid == ADMIN_ID:
@@ -163,17 +208,18 @@ async def reset_users(context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
 
-# ---------- MAIN ----------
+# ================= MAIN =================
 def main():
     if not TOKEN:
         raise ValueError("BOT_TOKEN not set")
+
+    init_db()
 
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(buttons))
 
-    # ریست هر ساعت
     app.job_queue.run_repeating(reset_users, interval=3600, first=3600)
 
     print("🚀 Scalable Bot Running...")
